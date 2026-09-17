@@ -165,6 +165,7 @@ InputSettings2::~InputSettings2()
 	m_timer->Stop();
 #ifdef HAVE_SWITCH2KIT
 	m_switch2Timer->Stop();
+	delete m_switch2Timer;
 #endif
 	InputManager::instance().save();
 }

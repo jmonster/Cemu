@@ -1,6 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -101,6 +102,33 @@ void MappingTests()
 	assert(!IsSupportedModel(0) && !IsSupportedModel(0x2009));
 }
 
+void RestoreSlotTests()
+{
+	struct Pad { int source = 0; };
+	struct Manager
+	{
+		std::shared_ptr<Pad> slot;
+		void delete_controller(std::size_t) { slot.reset(); }
+		void set_controller(const std::shared_ptr<Pad>& next)
+		{
+			// Match InputManager's source inheritance for an empty replacement.
+			if (slot && next->source == 0) next->source = slot->source;
+			slot = next;
+		}
+	};
+	for (int source : {0, 7})
+	{
+		Manager manager{std::make_shared<Pad>(Pad{8})};
+		auto before = std::make_shared<Pad>(Pad{source});
+		CemuSwitch2Kit::RestoreSlot(manager, 0, before);
+		assert(manager.slot == before && manager.slot->source == source);
+	}
+	Manager manager{std::make_shared<Pad>(Pad{8})};
+	CemuSwitch2Kit::RestoreSlot(manager, 0, std::shared_ptr<Pad>{});
+	assert(!manager.slot);
+	std::cout << "PASS exact rollback of populated, empty and disabled slots\n";
+}
+
 void TransactionTests()
 {
 	for (int failure = 0; failure != 6; ++failure)
@@ -160,4 +188,5 @@ int main()
 	MappingTests<ClassicController>();
 	std::cout << "PASS GameCube/Pro labels, trigger/stick axes and complementary Joy-Con mappings for all three pad types\n";
 	TransactionTests();
+	RestoreSlotTests();
 }

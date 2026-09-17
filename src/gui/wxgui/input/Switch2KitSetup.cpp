@@ -134,10 +134,7 @@ bool ApplySwitch2KitSetup(wxWindow* parent, size_t playerIndex, const Controller
 			[&] { return manager.save(playerIndex); },
 			[&] {
 				native->set_settings(previousSettings);
-				if (before)
-					manager.set_controller(before);
-				else
-					manager.delete_controller(playerIndex);
+				CemuSwitch2Kit::RestoreSlot(manager, playerIndex, before);
 			});
 		if (!committed)
 			throw std::runtime_error("Could not save controller settings");
