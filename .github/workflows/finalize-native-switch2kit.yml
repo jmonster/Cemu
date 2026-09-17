@@ -1,0 +1,93 @@
+name: Finish native controller regressions
+on:
+  push:
+    branches: [qa/native-switch2kit-import]
+    paths: [.github/workflows/finalize-native-switch2kit.yml]
+permissions:
+  contents: write
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/native-switch2kit
+      - name: Complete rollback and timer ownership
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == '7537a82c3bd845c6564aa8dd26aa00eac69793fc'
+          p = Path('src/gui/wxgui/input/Switch2KitSetupTransaction.h')
+          s = p.read_text().replace('#pragma once\n', '#pragma once\n\n#include <cstddef>\n')
+          s = s.replace('// Save the old profile', '''// InputManager normally inherits sources from the outgoing slot when the new
+          // slot is empty. Remove that outgoing slot first so rollback restores an empty
+          // prior configuration exactly, rather than inheriting the new controller.
+          template <typename Manager, typename Controller>
+          void RestoreSlot(Manager& manager, std::size_t index, const Controller& previous)
+          {
+          \tmanager.delete_controller(index);
+          \tif (previous)
+          \t\tmanager.set_controller(previous);
+          }
+
+          // Save the old profile''')
+          p.write_text(s)
+          p = Path('src/gui/wxgui/input/Switch2KitSetup.cpp')
+          s = p.read_text()
+          old = '\t\t\t\tif (before)\n\t\t\t\t\tmanager.set_controller(before);\n\t\t\t\telse\n\t\t\t\t\tmanager.delete_controller(playerIndex);'
+          assert old in s
+          p.write_text(s.replace(old, '\t\t\t\tCemuSwitch2Kit::RestoreSlot(manager, playerIndex, before);'))
+          p = Path('src/gui/wxgui/input/InputSettings2.cpp')
+          s = p.read_text()
+          old = '\tm_switch2Timer->Stop();\n#endif\n\tInputManager'
+          assert old in s
+          p.write_text(s.replace(old, '\tm_switch2Timer->Stop();\n\tdelete m_switch2Timer;\n#endif\n\tInputManager'))
+          p = Path('tests/switch2kit/PolicyTests.cpp')
+          s = p.read_text().replace('#include <map>', '#include <map>\n#include <memory>')
+          s = s.replace('void TransactionTests()\n', '''void RestoreSlotTests()
+          {
+          \tstruct Pad { int source = 0; };
+          \tstruct Manager
+          \t{
+          \t\tstd::shared_ptr<Pad> slot;
+          \t\tvoid delete_controller(std::size_t) { slot.reset(); }
+          \t\tvoid set_controller(const std::shared_ptr<Pad>& next)
+          \t\t{
+          \t\t\t// Match InputManager's source inheritance for an empty replacement.
+          \t\t\tif (slot && next->source == 0) next->source = slot->source;
+          \t\t\tslot = next;
+          \t\t}
+          \t};
+          \tfor (int source : {0, 7})
+          \t{
+          \t\tManager manager{std::make_shared<Pad>(Pad{8})};
+          \t\tauto before = std::make_shared<Pad>(Pad{source});
+          \t\tCemuSwitch2Kit::RestoreSlot(manager, 0, before);
+          \t\tassert(manager.slot == before && manager.slot->source == source);
+          \t}
+          \tManager manager{std::make_shared<Pad>(Pad{8})};
+          \tCemuSwitch2Kit::RestoreSlot(manager, 0, std::shared_ptr<Pad>{});
+          \tassert(!manager.slot);
+          \tstd::cout << "PASS exact rollback of populated, empty and disabled slots\\n";
+          }
+
+          void TransactionTests()
+          ''').replace('\tTransactionTests();', '\tTransactionTests();\n\tRestoreSlotTests();')
+          p.write_text(s)
+          PY
+      - name: Test and publish the correction
+        run: |
+          set -euo pipefail
+          git diff --check
+          git submodule update --init dependencies/Switch2Kit
+          git clone --depth=1 https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/sdl"
+          git -C "$RUNNER_TEMP/sdl" fetch --depth=1 origin f87239e71e42da91ca317a12eefb82cfbf3393eb
+          git -C "$RUNNER_TEMP/sdl" checkout --detach FETCH_HEAD
+          python3 tests/switch2kit/run.py --sdl "$RUNNER_TEMP/sdl" --sanitize
+          git add src/gui/wxgui/input/Switch2KitSetupTransaction.h src/gui/wxgui/input/Switch2KitSetup.cpp src/gui/wxgui/input/InputSettings2.cpp tests/switch2kit/PolicyTests.cpp
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Restore empty controller slots exactly after failed setup and release discovery timers'
+          git push origin HEAD:refs/heads/feature/native-switch2kit
