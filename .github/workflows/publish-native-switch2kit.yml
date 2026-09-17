@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Verify staged patch
+      - name: Verify exact staged patch
         run: |
           python3 - <<'PY'
           import base64, hashlib, os, zlib
