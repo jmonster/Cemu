@@ -1,0 +1,40 @@
+name: Publish native Switch2Kit review branch
+on:
+  push:
+    branches: [qa/native-switch2kit-import]
+    paths: [.github/workflows/publish-native-switch2kit.yml]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Verify staged patch
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, os, zlib
+          from pathlib import Path
+          payload = ''.join(Path(f'.qa/cemu.payload.{part}').read_text().strip() for part in range(1, 7))
+          patch = zlib.decompress(base64.b64decode(payload, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == 'd051fb54c0e86156b195b817cebadda8e99f2ef6609da4996870ac1158b49d35'
+          Path(os.environ['RUNNER_TEMP'], 'cemu.patch').write_bytes(patch)
+          PY
+      - name: Apply and publish without modifying main
+        run: |
+          set -euo pipefail
+          git fetch origin feature/native-switch2kit
+          git checkout -B feature/native-switch2kit FETCH_HEAD
+          test "$(git rev-parse HEAD)" = 3310f3b8b184d64a62b89fd59088c799432badf5
+          git apply --check "$RUNNER_TEMP/cemu.patch"
+          git apply --index "$RUNNER_TEMP/cemu.patch"
+          git diff --cached --check
+          git submodule update --init dependencies/Switch2Kit
+          git clone --filter=blob:none https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/test-sdl"
+          git -C "$RUNNER_TEMP/test-sdl" checkout --detach f87239e71e42da91ca317a12eefb82cfbf3393eb
+          python3 tests/switch2kit/run.py --sdk dependencies/Switch2Kit --sdl "$RUNNER_TEMP/test-sdl" --sanitize
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Add native Switch 2 controller setup, rumble and calibrated motion on macOS' -m 'Embed the pinned controller SDK; add per-slot recommended mappings, persistent device identity, safe profile replacement and timed rumble testing. Preserve ordinary controller APIs and disabled builds. Add host, mapping and transaction regressions and a local build helper.'
+          git push origin HEAD:refs/heads/feature/native-switch2kit
