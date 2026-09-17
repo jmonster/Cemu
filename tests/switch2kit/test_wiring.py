@@ -36,6 +36,7 @@ class Wiring(unittest.TestCase):
         self.assertIn('wxNO_DEFAULT', setup)
         self.assertIn('AssignedElsewhere', setup)
         self.assertIn('CommitSetup(', setup)
+        self.assertIn('CemuSwitch2Kit::RestoreSlot(manager, playerIndex, before)', setup)
         self.assertIn('manager.save(playerIndex, name, false)', setup)
         self.assertIn('manager.is_gameprofile_set(playerIndex)', setup)
         manager = text('src/input/InputManager.cpp')
@@ -56,6 +57,8 @@ class Wiring(unittest.TestCase):
         self.assertIn('this, m_timer->GetId()', ui)
         self.assertIn('native->TryRumble(m_settings.rumble)', ui)
         self.assertIn('m_controller->stop_rumble()', ui)
-        self.assertIn('m_switch2DevicesChanged.exchange(false)', text('src/gui/wxgui/input/InputSettings2.cpp'))
+        ui = text('src/gui/wxgui/input/InputSettings2.cpp')
+        self.assertIn('m_switch2DevicesChanged.exchange(false)', ui)
+        self.assertIn('delete m_switch2Timer;', ui)
 
 if __name__ == '__main__': unittest.main(verbosity=2)
