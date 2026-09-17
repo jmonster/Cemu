@@ -1,0 +1,40 @@
+name: Retire superseded controller review build
+on:
+  push:
+    branches: [qa/native-switch2kit-import]
+    paths: [.github/workflows/retire-superseded-review-build.yml]
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only the obsolete first build of this PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          root = 'https://api.github.com/repos/jmonster/Cemu'
+          def request(path, method='GET'):
+              req = urllib.request.Request(root + path, method=method,
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  data = response.read()
+                  return json.loads(data) if data else None
+          pr = request('/pulls/1')
+          run = request('/actions/runs/35278013226')
+          assert pr['state'] == 'open' and pr['head']['ref'] == 'feature/native-switch2kit'
+          assert run['head_sha'] == '7537a82c3bd845c6564aa8dd26aa00eac69793fc'
+          assert run['head_sha'] != pr['head']['sha']
+          assert run['name'] == 'Build check' and run['event'] == 'pull_request'
+          assert any(p['number'] == 1 for p in run['pull_requests'])
+          if run['status'] != 'completed':
+              request('/actions/runs/35278013226/cancel', 'POST')
+              print('Cancelled only the superseded first PR revision build. Current-head checks are untouched.')
+          else:
+              print('Superseded run already finished; no change.')
+          PY
