@@ -108,3 +108,7 @@ target_link_libraries(CemuInput PRIVATE
 if (ENABLE_BLUEZ)
 	target_link_libraries(CemuInput PRIVATE bluez::bluez)
 endif ()
+
+if(ENABLE_SWITCH2KIT)
+    target_link_libraries(CemuInput PRIVATE Switch2Kit::SDL3)
+endif()

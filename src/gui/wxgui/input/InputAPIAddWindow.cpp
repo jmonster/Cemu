@@ -15,6 +15,9 @@
 #include <wx/wupdlock.h>
 
 #include "input/ControllerFactory.h"
+#ifdef HAVE_SWITCH2KIT
+#include "input/api/SDL/SDLControllerProvider.h"
+#endif
 
 wxDEFINE_EVENT(wxControllersRefreshed, wxCommandEvent);
 
@@ -107,6 +110,29 @@ InputAPIAddWindow::InputAPIAddWindow(wxWindow* parent, const wxPoint& position,
 		sizer->Add(m_settings_panel, 1, wxEXPAND);
 	}
 
+#ifdef HAVE_SWITCH2KIT
+	auto* find = new wxButton(this, wxID_ANY, _("Find Switch 2 Controllers"));
+	auto* status = new wxStaticText(this, wxID_ANY, _("Select Find, then hold Sync."));
+	sizer->Add(find, 0, wxALL | wxEXPAND, 5);
+	sizer->Add(status, 0, wxALL | wxEXPAND, 5);
+	find->Bind(wxEVT_BUTTON, [this, status](wxCommandEvent&) {
+		const auto result = SDLControllerProvider::FindSwitch2Controllers();
+		if (result == 0)
+		{
+			m_input_api->SetStringSelection(wxString::FromUTF8(to_string(InputAPI::SDLController)));
+			wxCommandEvent selection;
+			on_api_selected(selection);
+			on_controller_dropdown(selection);
+		}
+		status->SetLabel(result == 0 ? _("Hold Sync, then open the Controller list to refresh.") :
+									  wxString::Format(_("Controller discovery could not start (%d)."), result));
+	});
+	m_switch2kit_timer = std::make_unique<wxTimer>(this);
+	Bind(wxEVT_TIMER, [status](wxTimerEvent&) {
+		status->SetLabel(wxString::FromUTF8(SDLControllerProvider::Switch2ControllerStatus()));
+	}, m_switch2kit_timer->GetId());
+	m_switch2kit_timer->Start(500);
+#endif
 	this->SetSizer(sizer);
 	this->Layout();
 	sizer->Fit(this);

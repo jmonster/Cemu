@@ -16,6 +16,9 @@ public:
 	~DefaultControllerSettings();
 
 private:
+#ifdef HAVE_SWITCH2KIT
+	std::unique_ptr<wxTimer> m_motion_timer;
+#endif
 	void update_settings();
 
 	ControllerPtr m_controller;

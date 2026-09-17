@@ -23,6 +23,16 @@ public:
 	int get_index(size_t guid_index, const SDL_GUID& guid) const;
 
 	MotionSample motion_sample(SDL_JoystickID diid);
+#ifdef HAVE_SWITCH2KIT
+	static int FindSwitch2Controllers();
+	static int DisconnectSwitch2Controllers();
+	static std::string Switch2ControllerStatus();
+	static SDL_JoystickID FindSwitch2Device(std::string_view key);
+	static int LoadSwitch2MotionProfile(const std::string& path, const std::string& key);
+	static void RemoveSwitch2MotionProfile(const std::string& key);
+	static std::string Switch2MotionStatus(const std::string& key);
+	static std::optional<MotionSample> AvailableSwitch2Motion(SDL_JoystickID id);
+#endif
 
 	// exposed for manual event handling on macOS
 #if BOOST_OS_MACOS
@@ -56,14 +66,6 @@ private:
 		glm::vec3 acc{};
 	};
 
-	struct MotionState
-	{
-		WiiUMotionHandler handler;
-		MotionSample data;
-		MotionInfoTracking tracking;
-
-		MotionState() = default;
-	};
-
-	inline static std::unordered_map<SDL_JoystickID, MotionState> s_motion_states{};
+	struct MotionState;
+	static std::unordered_map<SDL_JoystickID, MotionState> s_motion_states;
 };

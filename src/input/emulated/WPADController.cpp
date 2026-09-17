@@ -256,9 +256,9 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 		status.mpls.dir.Z.z = 1;
 	}
 
-	if (has_motion())
+	if (auto available = get_motion_data())
 	{
-		auto motion_sample = get_motion_data();
+		auto motion_sample = *available;
 
 		glm::vec3 acc;
 		motion_sample.getAccelerometer(&acc[0]);
@@ -337,9 +337,9 @@ void WPADController::KPADRead(KPADStatus_t& status, const BtnRepeat& repeat)
 		status.ex_status.fs.stick.x = axis.x;
 		status.ex_status.fs.stick.y = axis.y;
 
-		if(has_second_motion())
+		if (auto available = get_second_motion_data())
 		{
-			auto motion_sample = get_second_motion_data();
+			auto motion_sample = *available;
 
 			glm::vec3 acc;
 			motion_sample.getAccelerometer(&acc[0]);

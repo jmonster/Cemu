@@ -1,4 +1,7 @@
 #include "input/emulated/VPADController.h"
+#ifdef HAVE_SWITCH2KIT
+#include "input/api/SDL/Switch2KitMapping.h"
+#endif
 #include "input/api/Controller.h"
 #ifdef HAS_SDL
 #include "input/api/SDL/SDLController.h"
@@ -238,9 +241,9 @@ void VPADController::update_touch(VPADStatus_t& status)
 
 void VPADController::update_motion(VPADStatus_t& status)
 {
-	if (has_motion())
+	if (auto available = get_motion_data())
 	{
-		auto motionSample = get_motion_data();
+		auto motionSample = *available;
 
 		glm::vec3 acc;
 		motionSample.getVPADAccelerometer(&acc[0]);
@@ -516,6 +519,14 @@ bool VPADController::set_default_mapping(const std::shared_ptr<ControllerBase>& 
 #ifdef HAS_SDL
 	case InputAPI::SDLController: {
 		const auto sdl_controller = std::static_pointer_cast<SDLController>(controller);
+#ifdef HAVE_SWITCH2KIT
+		if (const auto model = sdl_controller->GetSwitch2Model();
+			model && CemuSwitch2Kit::IsSupportedModel(*model))
+		{
+			mapping = CemuSwitch2Kit::GamepadMapping<VPADController>(*model);
+		}
+		else
+#endif
 		if (sdl_controller->get_guid() == SDLController::kLeftJoyCon)
 		{
 			mapping =

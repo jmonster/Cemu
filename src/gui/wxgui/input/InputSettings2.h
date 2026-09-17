@@ -3,6 +3,7 @@
 #include <wx/dialog.h>
 #include <wx/notebook.h>
 #include <wx/timer.h>
+#include <atomic>
 
 #include "input/api/InputAPI.h"
 
@@ -10,6 +11,7 @@
 
 struct ControllerPage;
 class ControllerBase;
+class wxStaticText;
 
 class InputSettings2 : public wxDialog
 {
@@ -22,6 +24,12 @@ private:
 
 	wxNotebook* m_notebook;
 	wxTimer* m_timer;
+#ifdef HAVE_SWITCH2KIT
+	wxTimer* m_switch2Timer;
+	wxStaticText* m_switch2Status;
+	std::atomic<bool> m_switch2DevicesChanged{false};
+	void RefreshSwitch2Controllers();
+#endif
 
 	wxBitmap m_connected, m_disconnected, m_low_battery;
 

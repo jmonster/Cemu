@@ -65,6 +65,10 @@ ControllerPtr ControllerFactory::CreateController(InputAPI::Type api, std::strin
 #ifdef HAS_SDL
 	case InputAPI::SDLController:
 		{
+#ifdef HAVE_SWITCH2KIT
+			if (uuid.starts_with("s2k:"))
+				return std::make_shared<SDLController>(uuid, display_name);
+#endif
 			// diid_guid
 			const auto index = uuid.find_first_of('_');
 			if (index == std::string_view::npos)

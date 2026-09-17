@@ -58,11 +58,11 @@ public:
 	bool is_battery_low() const;
 
 	bool has_motion() const;
-	MotionSample get_motion_data() const;
+	std::optional<MotionSample> get_motion_data() const;
 
 	// some controllers (nunchuck) provide extra motion data
 	bool has_second_motion() const;
-	MotionSample get_second_motion_data() const;
+	std::optional<MotionSample> get_second_motion_data() const;
 
 	bool has_position() const;
 	glm::vec2 get_position() const;

@@ -110,13 +110,17 @@ if (MACOS_BUNDLE)
 	set(MACOSX_BUNDLE_COPYRIGHT "Copyright © ${CURRENT_YEAR} Cemu Project")
 
 	set(MACOSX_BUNDLE_CATEGORY "public.app-category.games")
- 	set(MACOSX_MINIMUM_SYSTEM_VERSION "13.4")
+	set(MACOSX_MINIMUM_SYSTEM_VERSION "${CMAKE_OSX_DEPLOYMENT_TARGET}")
   	set(MACOSX_BUNDLE_TYPE_EXTENSION "wua")
 
 	set_target_properties(CemuBin PROPERTIES
 		MACOSX_BUNDLE true
 		RESOURCE "${RESOURCE_FILES}"
 	)
+
+    if(ENABLE_SWITCH2KIT)
+        switch2kit_embed(CemuBin)
+    endif()
 
 	set(FOLDERS gameProfiles resources)
 	foreach(folder ${FOLDERS})
@@ -174,6 +178,13 @@ if (MACOS_BUNDLE)
 				"$<TARGET_FILE:CemuBin>"
 		)
 	endif()
+	if(ENABLE_SWITCH2KIT)
+		add_custom_command(TARGET CemuBin POST_BUILD
+			COMMAND ${CMAKE_COMMAND} "-DAPP=$<TARGET_BUNDLE_DIR:CemuBin>"
+				-P "${CMAKE_SOURCE_DIR}/cmake/SignSwitch2KitBundle.cmake"
+			VERBATIM)
+	endif()
+
 else()
     if(APPLE)
 		if (ENABLE_VULKAN)

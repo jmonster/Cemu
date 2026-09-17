@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.21.1)
 
 option(ENABLE_VCPKG "Enable the vcpkg package manager" ON)
+option(ENABLE_SWITCH2KIT "Use in-process Switch2Kit controllers on macOS 15+" OFF)
+set(SWITCH2KIT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/Switch2Kit" CACHE PATH "Switch2Kit source checkout")
 option(MACOS_BUNDLE "The executable when built on macOS will be created as an application bundle" OFF)
 option(ALLOW_PORTABLE "Allow Cemu to be run in portable mode" ON)
 
@@ -99,7 +101,9 @@ endif()
 
 if (APPLE)
     enable_language(OBJC OBJCXX)
-    set(CMAKE_OSX_DEPLOYMENT_TARGET "13.4")
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "13.4")
+    endif()
 endif()
 
 if (UNIX AND NOT APPLE)
@@ -166,6 +170,22 @@ find_package(PNG REQUIRED)
 if(ENABLE_SDL)
 	find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3)
 	add_compile_definitions(HAS_SDL)
+endif()
+
+if(ENABLE_SWITCH2KIT)
+    if(NOT APPLE OR NOT ENABLE_SDL OR NOT MACOS_BUNDLE)
+        message(FATAL_ERROR "Switch2Kit requires macOS, ENABLE_SDL and MACOS_BUNDLE")
+    endif()
+    if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 15.0)
+        message(FATAL_ERROR "Switch2Kit requires CMAKE_OSX_DEPLOYMENT_TARGET=15.0 or newer")
+    endif()
+    if(NOT EXISTS "${SWITCH2KIT_SOURCE_DIR}/Integrations/SDL3/CMakeLists.txt")
+        message(FATAL_ERROR "Switch2Kit is missing. Run git submodule update --init --recursive")
+    endif()
+    add_subdirectory("${SWITCH2KIT_SOURCE_DIR}/Integrations/SDL3" "${CMAKE_BINARY_DIR}/switch2kit")
+    add_compile_definitions(HAVE_SWITCH2KIT)
+    include_directories("${SWITCH2KIT_SOURCE_DIR}/Integrations/Emulators")
+    set(SWITCH2KIT_BLUETOOTH_USAGE "<key>NSBluetoothAlwaysUsageDescription</key><string>Cemu uses Bluetooth to connect to the controllers you select.</string>")
 endif()
 
 # glslang versions older than 11.11.0 define targets without a namespace

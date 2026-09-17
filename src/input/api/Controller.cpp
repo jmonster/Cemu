@@ -205,8 +205,13 @@ ControllerBase::Settings ControllerBase::get_settings() const
 
 void ControllerBase::set_settings(const Settings& settings)
 {
-	std::scoped_lock lock(m_settings_mutex);
-	m_settings = settings;
+	bool motionChanged;
+	{
+		std::scoped_lock lock(m_settings_mutex);
+		motionChanged = m_settings.motion != settings.motion;
+		m_settings = settings;
+	}
+	if (motionChanged) motion_settings_changed();
 }
 
 void ControllerBase::set_axis_settings(const AxisSetting& settings)
@@ -235,6 +240,11 @@ void ControllerBase::set_rumble(float rumble)
 
 void ControllerBase::set_use_motion(bool state)
 {
-	std::scoped_lock lock(m_settings_mutex);
-	m_settings.motion = state;
+	bool motionChanged;
+	{
+		std::scoped_lock lock(m_settings_mutex);
+		motionChanged = m_settings.motion != state;
+		m_settings.motion = state;
+	}
+	if (motionChanged) motion_settings_changed();
 }

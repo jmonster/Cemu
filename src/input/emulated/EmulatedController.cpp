@@ -1,6 +1,9 @@
 #include "input/emulated/EmulatedController.h"
 
 #include "input/api/Controller.h"
+#ifdef HAVE_SWITCH2KIT
+#include "input/api/SDL/SDLController.h"
+#endif
 
 #ifdef SUPPORTS_WIIMOTE
 #include "input/api/Wiimote/NativeWiimoteController.h"
@@ -110,13 +113,13 @@ bool EmulatedController::has_motion() const
 	return std::any_of(m_controllers.cbegin(), m_controllers.cend(), [](const auto& c) {return c->use_motion(); });
 }
 
-MotionSample EmulatedController::get_motion_data() const
+std::optional<MotionSample> EmulatedController::get_motion_data() const
 {
 	std::shared_lock lock(m_mutex);
 	for (const auto& controller : m_controllers)
 	{
-		if (controller->use_motion())
-			return controller->get_motion_sample();
+		if (auto sample = controller->get_available_motion_sample())
+			return sample;
 	}
 
 	return {};
@@ -147,13 +150,13 @@ bool EmulatedController::has_second_motion() const
 	return motion >= 2;
 }
 
-MotionSample EmulatedController::get_second_motion_data() const
+std::optional<MotionSample> EmulatedController::get_second_motion_data() const
 {
 	int motion = 0;
 	std::shared_lock lock(m_mutex);
 	for (const auto& controller : m_controllers)
 	{
-		if (controller->use_motion())
+		if (auto sample = controller->get_available_motion_sample())
 		{
 			// if wiimote has nunchuck connected, we use its acceleration
             #ifdef SUPPORTS_WIIMOTE
@@ -169,7 +172,7 @@ MotionSample EmulatedController::get_second_motion_data() const
 			motion++;
 			if(motion == 2)
 			{
-				return controller->get_motion_sample();
+				return sample;
 			}
 		}
 	}
@@ -221,6 +224,10 @@ PositionVisibility EmulatedController::GetPositionVisibility() const
 void EmulatedController::add_controller(std::shared_ptr<ControllerBase> controller)
 {
 	controller->connect();
+#ifdef HAVE_SWITCH2KIT
+	if (const auto native = std::dynamic_pointer_cast<SDLController>(controller))
+		native->SetPlayerIndex(m_player_index);
+#endif
 
     #ifdef SUPPORTS_WIIMOTE
     if (const auto wiimote = std::dynamic_pointer_cast<NativeWiimoteController>(controller)) {
