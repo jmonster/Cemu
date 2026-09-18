@@ -1,0 +1,28 @@
+name: Controller integration review source
+on:
+  push:
+    branches: [qa/controller-final-review]
+    paths: [.github/workflows/controller-review-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 8359abeb0d1be8bc99196cda0a2219144ce3b164
+          persist-credentials: false
+      - name: Archive the reviewed PR revision
+        run: |
+          git archive HEAD -o cemu-review-source.zip
+          git rev-parse HEAD > cemu-review-revision.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cemu-controller-review-source
+          path: |
+            cemu-review-source.zip
+            cemu-review-revision.txt
+          if-no-files-found: error
+          retention-days: 7
