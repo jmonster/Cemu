@@ -27,14 +27,14 @@ jobs:
                   data = response.read()
                   return json.loads(data) if data else None
           pr = request('/pulls/1')
-          assert pr['state'] == 'open' and pr['head']['sha'] == '2d845d64bb96ee0f0e06ed543d56e5415e61a939'
-          run = request('/actions/runs/35292056646')
+          assert pr['state'] == 'open' and pr['head']['sha'] == '40e725e935a35feb3c12b2959c129cb1524a38a2'
+          run = request('/actions/runs/35292593925')
           assert run['name'] == 'Build check' and run['event'] == 'pull_request'
           assert run['head_branch'] == 'feature/native-switch2kit'
-          assert run['head_sha'] == '8359abeb0d1be8bc99196cda0a2219144ce3b164'
+          assert run['head_sha'] == '2d845d64bb96ee0f0e06ed543d56e5415e61a939'
           assert any(p['number'] == 1 for p in run['pull_requests'])
           if run['status'] != 'completed':
-              request('/actions/runs/35292056646/cancel', 'POST')
+              request('/actions/runs/35292593925/cancel', 'POST')
               print('Cancelled only the superseded Cemu PR 1 build; current-head and unrelated runs retained.')
           else:
               print('Superseded build already complete; nothing cancelled.')
