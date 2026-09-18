@@ -1,0 +1,178 @@
+--- a/src/gui/wxgui/input/InputSettings2.cpp
++++ b/src/gui/wxgui/input/InputSettings2.cpp
+@@ -147,14 +147,20 @@
+ 	m_switch2Timer = new wxTimer(this);
+ 	Bind(wxEVT_TIMER, [this](wxTimerEvent&) {
+ 		m_switch2Status->SetLabel(wxString::FromUTF8(SDLControllerProvider::Switch2ControllerStatus()));
+-		if (m_switch2DevicesChanged.exchange(false))
++		if (m_switch2DevicesChanged->Consume())
+ 			on_controller_changed();
+ 	}, m_switch2Timer->GetId());
+ 	m_switch2Timer->Start(500);
+ 	RefreshSwitch2Controllers();
+ #endif
+ 
++#ifdef HAVE_SWITCH2KIT
++	// Keep a callback already in flight away from the window's lifetime.
++	m_controller_changed = EventService::instance().connect<Events::ControllerChanged>(
++		&CemuSwitch2Kit::DeviceChanges::Notify, m_switch2DevicesChanged);
++#else
+ 	m_controller_changed = EventService::instance().connect<Events::ControllerChanged>(&InputSettings2::on_controller_changed, this);
++#endif
+ }
+ 
+ InputSettings2::~InputSettings2()
+@@ -556,11 +562,7 @@
+ void InputSettings2::on_controller_changed()
+ {
+ #ifdef HAVE_SWITCH2KIT
+-	if (!wxIsMainThread())
+-	{
+-		m_switch2DevicesChanged = true;
+-		return;
+-	}
++	wxASSERT(wxIsMainThread());
+ 	RefreshSwitch2Controllers();
+ #endif
+ 	for(auto i = 0 ; i < m_notebook->GetPageCount(); ++i)
+--- a/src/gui/wxgui/input/InputSettings2.h
++++ b/src/gui/wxgui/input/InputSettings2.h
+@@ -3,7 +3,10 @@
+ #include <wx/dialog.h>
+ #include <wx/notebook.h>
+ #include <wx/timer.h>
+-#include <atomic>
++#include <memory>
++#ifdef HAVE_SWITCH2KIT
++#include "wxgui/input/Switch2KitDeviceChanges.h"
++#endif
+ 
+ #include "input/api/InputAPI.h"
+ 
+@@ -27,7 +30,8 @@
+ #ifdef HAVE_SWITCH2KIT
+ 	wxTimer* m_switch2Timer;
+ 	wxStaticText* m_switch2Status;
+-	std::atomic<bool> m_switch2DevicesChanged{false};
++	std::shared_ptr<CemuSwitch2Kit::DeviceChanges> m_switch2DevicesChanged =
++		std::make_shared<CemuSwitch2Kit::DeviceChanges>();
+ 	void RefreshSwitch2Controllers();
+ #endif
+ 
+--- /dev/null
++++ b/src/gui/wxgui/input/Switch2KitDeviceChanges.h
+@@ -0,0 +1,19 @@
++#pragma once
++
++#include <atomic>
++
++namespace CemuSwitch2Kit
++{
++// The event subscription owns this flag, not the settings window. A callback
++// already in flight may finish after disconnect() or window destruction.
++// Only the window's main-thread timer consumes the flag and touches widgets.
++class DeviceChanges
++{
++public:
++	void Notify() { m_pending.store(true, std::memory_order_relaxed); }
++	bool Consume() { return m_pending.exchange(false, std::memory_order_relaxed); }
++
++private:
++	std::atomic<bool> m_pending{false};
++};
++} // namespace CemuSwitch2Kit
+--- a/tests/switch2kit/PolicyTests.cpp
++++ b/tests/switch2kit/PolicyTests.cpp
+@@ -5,11 +5,14 @@
+ #include <set>
+ #include <stdexcept>
+ #include <string>
++#include <functional>
++#include <thread>
+ #include "ControllerEnums.h"
+ #include "input/api/SDL/Switch2KitMapping.h"
+ #include "input/api/SDL/Switch2KitIdentity.h"
+ #include "input/api/SDL/Switch2KitSession.h"
+ #include "wxgui/input/Switch2KitSetupTransaction.h"
++#include "wxgui/input/Switch2KitDeviceChanges.h"
+ 
+ // Bluetooth is intentionally absent here. These execute the production policies
+ // with the actual Cemu/SDL/SDK enum values and controlled host/storage boundaries.
+@@ -175,6 +178,34 @@
+ 	std::cout << "PASS backup-before-replace, backup refusal, save failure and exception rollback\n";
+ }
+ 
++void DeviceChangeTests()
++{
++	using CemuSwitch2Kit::DeviceChanges;
++	auto windowState = std::make_shared<DeviceChanges>();
++	std::weak_ptr<DeviceChanges> retired = windowState;
++	// Model the shared ownership retained by EventService's bound slot. No GUI
++	// object is captured, and the actual production flag implements coalescing.
++	std::function<void()> callback = [state = windowState] { state->Notify(); };
++	assert(!windowState->Consume());
++	callback();
++	callback();
++	assert(windowState->Consume() && !windowState->Consume());
++	std::thread producer([callback] { for (int i = 0; i < 10000; ++i) callback(); });
++	producer.join();
++	assert(windowState->Consume() && !windowState->Consume());
++	// A retained in-flight callback can finish after the old window releases
++	// its state without accessing that window or notifying a new instance.
++	windowState.reset();
++	assert(!retired.expired());
++	auto reopened = std::make_shared<DeviceChanges>();
++	std::thread finishing([callback] { callback(); });
++	finishing.join();
++	assert(!reopened->Consume());
++	callback = {};
++	assert(retired.expired());
++	std::cout << "PASS coalesced notifications, in-flight window teardown and reopened-window isolation\n";
++}
++
+ int main()
+ {
+ 	using CemuSwitch2Kit::ValidPhysicalKey;
+@@ -183,6 +214,7 @@
+ 		assert(!ValidPhysicalKey(invalid));
+ 	std::cout << "PASS persistent identity validation without ordinal fallback\n";
+ 	SessionTests();
++	DeviceChangeTests();
+ 	MappingTests<VPADController>();
+ 	MappingTests<ProController>();
+ 	MappingTests<ClassicController>();
+--- a/tests/switch2kit/run.py
++++ b/tests/switch2kit/run.py
+@@ -46,7 +46,7 @@
+             enums.append(f'struct {name} {{ {match[0]} }};')
+         (work / 'ControllerEnums.h').write_text('\n'.join(enums))
+         binary = work / 'policies'
+-        command = [compiler, '-std=c++20', '-Wall', '-Wextra', '-Werror', '-UNDEBUG',
++        command = [compiler, '-std=c++20', '-pthread', '-Wall', '-Wextra', '-Werror', '-UNDEBUG',
+                    '-I' + str(work), '-I' + str(ROOT / 'src'), '-I' + str(ROOT / 'src/gui'),
+                    '-I' + str(sdl), '-I' + str(sdk / 'Sources/Switch2KitCABI/include'),
+                    str(ROOT / 'tests/switch2kit/PolicyTests.cpp'), '-o', str(binary)]
+--- a/tests/switch2kit/test_wiring.py
++++ b/tests/switch2kit/test_wiring.py
+@@ -58,13 +58,20 @@
+         provider = text('src/input/api/SDL/SDLControllerProvider.cpp')
+         self.assertIn('availableSample()', provider)
+         self.assertIn('loadMotionProfile', provider)
++    def test_notification_callback_does_not_own_window(self):
++        ui = text('src/gui/wxgui/input/InputSettings2.cpp')
++        self.assertIn('&CemuSwitch2Kit::DeviceChanges::Notify, m_switch2DevicesChanged', ui)
++        self.assertIn('std::shared_ptr<CemuSwitch2Kit::DeviceChanges>', text('src/gui/wxgui/input/InputSettings2.h'))
++        changed = ui.split('void InputSettings2::on_controller_changed()')[1].split('\n}')[0]
++        self.assertNotIn('m_switch2DevicesChanged = true', changed)
++        self.assertIn('wxASSERT(wxIsMainThread())', changed)
+     def test_timer_ids_and_rumble_cancel(self):
+         ui = text('src/gui/wxgui/input/settings/DefaultControllerSettings.cpp')
+         self.assertIn('this, m_timer->GetId()', ui)
+         self.assertIn('native->TryRumble(m_settings.rumble)', ui)
+         self.assertIn('m_controller->stop_rumble()', ui)
+         ui = text('src/gui/wxgui/input/InputSettings2.cpp')
+-        self.assertIn('m_switch2DevicesChanged.exchange(false)', ui)
++        self.assertIn('m_switch2DevicesChanged->Consume()', ui)
+         self.assertIn('delete m_switch2Timer;', ui)
+ 
+ if __name__ == '__main__': unittest.main(verbosity=2)
