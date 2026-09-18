@@ -55,7 +55,8 @@ def run():
         subprocess.run(command, check=True, timeout=120)
         subprocess.run([str(binary)], check=True, timeout=30)
     subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_wiring.py')], check=True)
-    subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_desktop_lifecycle.py')], check=True)
+    subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_desktop_lifecycle.py'),
+                    '--sdk', str(sdk)], check=True)
 
 if __name__ == '__main__':
     run()

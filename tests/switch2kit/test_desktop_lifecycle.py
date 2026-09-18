@@ -5,6 +5,7 @@ This does not emulate a controller or claim a native GUI/platform build. Only
 includes are removed for preprocessing; the production conditional directives
 and method bodies are retained. CMake imports are recorded rather than built.
 """
+import argparse
 import os
 from pathlib import Path
 import re
@@ -14,6 +15,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+SDK = ROOT / 'dependencies/Switch2Kit'
 
 
 def text(path):
@@ -98,7 +100,7 @@ class DesktopLifecycle(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory(prefix='cemu-cmake-policy-') as directory:
             script = Path(directory) / 'policy.cmake'
-            sdk = ROOT / 'dependencies/Switch2Kit'
+            sdk = SDK
             for platform, native, sdl, bundle, version, exists, admitted, error in cases:
                 with self.subTest(platform=platform, native=native, sdl=sdl,
                                   bundle=bundle, version=version, sdk=exists):
@@ -127,4 +129,8 @@ endfunction()
 
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--sdk', type=Path, default=SDK)
+    args = parser.parse_args()
+    SDK = args.sdk.resolve()
+    unittest.main(argv=[__file__], verbosity=2)
