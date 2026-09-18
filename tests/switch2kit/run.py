@@ -55,6 +55,12 @@ def run():
         subprocess.run(command, check=True, timeout=120)
         subprocess.run([str(binary)], check=True, timeout=30)
     subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_wiring.py')], check=True)
+    automatic = ['python3', str(ROOT / 'tests/switch2kit/test_autoconnect.py'), '--include', str(sdl)]
+    if args.sanitize:
+        automatic.append('--sanitize')
+    subprocess.run(automatic, check=True)
+    subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_autoconnect_wiring.py'),
+                    '--sdk', str(sdk)], check=True)
 
 if __name__ == '__main__':
     run()
