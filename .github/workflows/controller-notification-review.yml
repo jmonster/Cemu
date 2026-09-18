@@ -1,0 +1,47 @@
+name: Controller notification lifetime qualification
+on:
+  push:
+    branches: [qa/controller-final-review]
+    paths: [.github/workflows/controller-notification-review.yml]
+permissions:
+  contents: write
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Preserve and verify the reviewed patch
+        run: |
+          cp .qa/controller-notification-lifetime.patch "$RUNNER_TEMP/notification.patch"
+          echo 'e82cffc594b4fef2157ceec4b115144042d257a95f638c93d2087a770c7234c3  '"$RUNNER_TEMP/notification.patch" | sha256sum -c -
+          git fetch origin 2d845d64bb96ee0f0e06ed543d56e5415e61a939
+          git checkout --detach FETCH_HEAD
+          git apply --check "$RUNNER_TEMP/notification.patch"
+          git apply "$RUNNER_TEMP/notification.patch"
+          git diff --check
+          git submodule update --init dependencies/Switch2Kit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: libsdl-org/SDL
+          ref: f87239e71e42da91ca317a12eefb82cfbf3393eb
+          path: test-sdl
+          persist-credentials: false
+      - name: Run production helper and source regressions
+        run: |
+          set -o pipefail
+          python3 tests/switch2kit/run.py --sdl test-sdl --sanitize 2>&1 | tee notification-tests.log
+      - name: Publish only the isolated review candidate
+        run: |
+          git add src/gui/wxgui/input/InputSettings2.cpp src/gui/wxgui/input/InputSettings2.h src/gui/wxgui/input/Switch2KitDeviceChanges.h tests/switch2kit/PolicyTests.cpp tests/switch2kit/run.py tests/switch2kit/test_wiring.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Keep in-flight controller notifications independent of settings-window lifetime'
+          git push origin HEAD:refs/heads/qa/controller-notification-candidate
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: controller-notification-review
+          path: notification-tests.log
+          if-no-files-found: warn
+          retention-days: 7
