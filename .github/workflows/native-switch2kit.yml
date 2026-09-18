@@ -78,7 +78,12 @@ jobs:
           assert not any('HAVE_SWITCH2KIT' in row['command'] for row in commands)
           assert not any('Switch2KitSetup.cpp' in row['file'] for row in commands)
           cache = Path('build-switch2kit/CMakeCache.txt').read_text()
-          assert 'CMAKE_OSX_DEPLOYMENT_TARGET:STRING=13.4' in cache
+          # Command-line cache entries may be STRING or UNINITIALIZED. Check
+          # the deployment value, not CMake's incidental cache type spelling.
+          values = {line.split(':', 1)[0]: line.split('=', 1)[1]
+                    for line in cache.splitlines()
+                    if not line.startswith(('#', '//')) and ':' in line and '=' in line}
+          assert values.get('CMAKE_OSX_DEPLOYMENT_TARGET') == '13.4', values.get('CMAKE_OSX_DEPLOYMENT_TARGET')
           print('PASS disabled option: no native backend sources or defines; macOS 13.4 retained')
           PY
       - name: Qualified development application
