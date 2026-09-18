@@ -24,15 +24,16 @@ def main():
         raise SystemExit('A C++20 compiler is required')
     with tempfile.TemporaryDirectory(prefix='cemu-autoconnect-') as directory:
         work = Path(directory)
-        binary = work / 'autoconnect'
-        command = [compiler, '-std=c++20', '-pthread', '-Wall', '-Wextra', '-Werror', '-UNDEBUG',
-                   '-I' + str(ROOT / 'src')]
-        command += ['-I' + str(path.resolve()) for path in args.include]
-        command += [str(ROOT / 'tests/switch2kit/AutoConnectTests.cpp'), '-o', str(binary)]
+        flags = [compiler, '-std=c++20', '-pthread', '-Wall', '-Wextra', '-Werror', '-UNDEBUG',
+                 '-I' + str(ROOT / 'src')]
+        flags += ['-I' + str(path.resolve()) for path in args.include]
         if args.sanitize:
-            command += ['-fsanitize=address,undefined', '-fno-omit-frame-pointer']
-        subprocess.run(command, check=True, timeout=120)
-        subprocess.run([str(binary), str(work)], check=True, timeout=30)
+            flags += ['-fsanitize=address,undefined', '-fno-omit-frame-pointer']
+        for name in ('AutoConnectTests', 'AutoConnectConfigSizeTests'):
+            binary = work / name
+            command = flags + [str(ROOT / f'tests/switch2kit/{name}.cpp'), '-o', str(binary)]
+            subprocess.run(command, check=True, timeout=120)
+            subprocess.run([str(binary), str(work)], check=True, timeout=30)
 
 
 if __name__ == '__main__':

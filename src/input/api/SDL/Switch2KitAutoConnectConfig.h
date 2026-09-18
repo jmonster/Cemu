@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/property_tree/ini_parser.hpp>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -37,7 +38,12 @@ public:
 			data.put("Settings.AutoConnect", enabled ? "true" : "false");
 			std::ostringstream stream;
 			boost::property_tree::write_ini(stream, data);
-			return writeAtomic(path, stream.str());
+			// A successful save must remain readable on the next launch. Adding
+			// the key or changing true to false can grow a valid near-limit INI.
+			const auto bytes = stream.str();
+			if (bytes.size() > MaxBytes)
+				return false;
+			return writeAtomic(path, bytes);
 		}
 		catch (const std::exception&)
 		{
@@ -46,6 +52,8 @@ public:
 	}
 
 private:
+	static constexpr std::size_t MaxBytes = 65536;
+
 	static bool Read(const std::filesystem::path& path, boost::property_tree::ptree& data, bool& enabled)
 	{
 		try
@@ -63,14 +71,14 @@ private:
 			if (error || !std::filesystem::is_regular_file(status))
 				return false;
 			const auto size = std::filesystem::file_size(path, error);
-			if (error || size > 65536)
+			if (error || size > MaxBytes)
 				return false;
 			std::ifstream file(path, std::ios::binary);
 			if (!file)
 				return false;
-			std::string bytes(65537, '\0');
+			std::string bytes(MaxBytes + 1, '\0');
 			file.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-			if (file.bad() || !file.eof() || file.gcount() > 65536)
+			if (file.bad() || !file.eof() || file.gcount() > static_cast<std::streamsize>(MaxBytes))
 				return false;
 			bytes.resize(static_cast<std::size_t>(file.gcount()));
 			if (bytes.find('\0') != std::string::npos)

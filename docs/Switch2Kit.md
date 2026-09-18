@@ -83,14 +83,16 @@ The preference is `[Settings] AutoConnect=true` or `false` in `Switch2Kit.ini`,
 beside Cemu's `settings.xml`, not inside controller profiles. Missing files/keys
 mean off. Updates re-read the file, preserve unrelated entries and sections, and
 use Cemu's atomic writer. INI comments/formatting are not preserved. Malformed,
-oversized, inaccessible or non-regular files are not silently replaced. A failed
-save leaves the previous choice and radio policy intact; the checkbox reflects
-the saved choice. Repair file access or malformed configuration and retry the
-option. Configuration and policy/start errors remain visible through successful
-polling and status refreshes. Find retries starting support, not saving settings.
+oversized, inaccessible or non-regular files are not silently replaced. A save
+that would exceed the 64 KiB read limit is rejected before writing, so a successful
+save remains readable on the next launch. A failed save leaves the previous
+choice and radio policy intact; the checkbox reflects the saved choice. Repair
+file access or malformed configuration and retry the option. Configuration and
+policy/start errors remain visible through successful polling and status
+refreshes. Find retries starting support, not saving settings.
 
 The SDK submodule is pinned to
-`731bd5f97c806e15277c9cd120d55515cef57940`, which includes the additive automatic
+`51e36a8223f2c4254b8d9d9f43dc10c8cdb3ff33`, which includes the additive automatic
 C API and the shared `SDLHost` forwarding methods from
 [Switch2Kit PR #74](https://github.com/jmonster/Switch2Kit/pull/74). Do not link an
 older library that lacks `s2k_set_automatic_discovery`. The source-integration
@@ -155,6 +157,8 @@ These tests execute the production session/configuration policies with controlle
 SDK-host and atomic-writer boundaries and real INI file reads. They cover default
 off, one-shot consent, repeated polling without renewal, stop/shutdown fences,
 live-session preservation, save/read failure, retry and unrelated INI entries.
+The size regressions verify exact-limit round trips and preservation of both the
+file and runtime choice when an update would overflow the input bound.
 Source checks guard the startup hook, checkbox, SDK pin and build gates; they are
 not native GUI execution. Native CI compiles the full Cemu app on Apple silicon
 and Intel, checks its bundle/signature, and launches, normally quits and

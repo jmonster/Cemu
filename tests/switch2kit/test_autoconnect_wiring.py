@@ -7,7 +7,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SDK = ROOT / 'dependencies/Switch2Kit'
-PIN = '731bd5f97c806e15277c9cd120d55515cef57940'
+PIN = '51e36a8223f2c4254b8d9d9f43dc10c8cdb3ff33'
 
 
 def source(path):
