@@ -3,7 +3,10 @@
 #include <wx/dialog.h>
 #include <wx/notebook.h>
 #include <wx/timer.h>
-#include <atomic>
+#include <memory>
+#ifdef HAVE_SWITCH2KIT
+#include "wxgui/input/Switch2KitDeviceChanges.h"
+#endif
 
 #include "input/api/InputAPI.h"
 
@@ -27,7 +30,8 @@ private:
 #ifdef HAVE_SWITCH2KIT
 	wxTimer* m_switch2Timer;
 	wxStaticText* m_switch2Status;
-	std::atomic<bool> m_switch2DevicesChanged{false};
+	std::shared_ptr<CemuSwitch2Kit::DeviceChanges> m_switch2DevicesChanged =
+		std::make_shared<CemuSwitch2Kit::DeviceChanges>();
 	void RefreshSwitch2Controllers();
 #endif
 

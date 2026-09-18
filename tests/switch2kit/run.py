@@ -46,7 +46,7 @@ def run():
             enums.append(f'struct {name} {{ {match[0]} }};')
         (work / 'ControllerEnums.h').write_text('\n'.join(enums))
         binary = work / 'policies'
-        command = [compiler, '-std=c++20', '-Wall', '-Wextra', '-Werror', '-UNDEBUG',
+        command = [compiler, '-std=c++20', '-pthread', '-Wall', '-Wextra', '-Werror', '-UNDEBUG',
                    '-I' + str(work), '-I' + str(ROOT / 'src'), '-I' + str(ROOT / 'src/gui'),
                    '-I' + str(sdl), '-I' + str(sdk / 'Sources/Switch2KitCABI/include'),
                    str(ROOT / 'tests/switch2kit/PolicyTests.cpp'), '-o', str(binary)]

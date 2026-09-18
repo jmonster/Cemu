@@ -147,14 +147,20 @@ InputSettings2::InputSettings2(wxWindow* parent)
 	m_switch2Timer = new wxTimer(this);
 	Bind(wxEVT_TIMER, [this](wxTimerEvent&) {
 		m_switch2Status->SetLabel(wxString::FromUTF8(SDLControllerProvider::Switch2ControllerStatus()));
-		if (m_switch2DevicesChanged.exchange(false))
+		if (m_switch2DevicesChanged->Consume())
 			on_controller_changed();
 	}, m_switch2Timer->GetId());
 	m_switch2Timer->Start(500);
 	RefreshSwitch2Controllers();
 #endif
 
+#ifdef HAVE_SWITCH2KIT
+	// Keep a callback already in flight away from the window's lifetime.
+	m_controller_changed = EventService::instance().connect<Events::ControllerChanged>(
+		&CemuSwitch2Kit::DeviceChanges::Notify, m_switch2DevicesChanged);
+#else
 	m_controller_changed = EventService::instance().connect<Events::ControllerChanged>(&InputSettings2::on_controller_changed, this);
+#endif
 }
 
 InputSettings2::~InputSettings2()
@@ -556,11 +562,7 @@ void InputSettings2::update_state()
 void InputSettings2::on_controller_changed()
 {
 #ifdef HAVE_SWITCH2KIT
-	if (!wxIsMainThread())
-	{
-		m_switch2DevicesChanged = true;
-		return;
-	}
+	wxASSERT(wxIsMainThread());
 	RefreshSwitch2Controllers();
 #endif
 	for(auto i = 0 ; i < m_notebook->GetPageCount(); ++i)
