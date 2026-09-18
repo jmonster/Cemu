@@ -34,14 +34,6 @@ bool ApplySwitch2KitSetup(wxWindow* parent, size_t playerIndex, const Controller
 	const auto native = std::dynamic_pointer_cast<SDLController>(controller);
 	if (playerIndex >= InputManager::kMaxController || !native || !native->IsSwitch2Controller())
 		return false;
-	if (!native->connect())
-	{
-		wxMessageBox(_("Connect the controller with Find Switch 2 Controllers first."), _("Switch 2 Controllers"), wxOK | wxICON_INFORMATION, parent);
-		return false;
-	}
-	const auto model = native->GetSwitch2Model();
-	if (!model || (*model != S2K_GAMECUBE && *model != S2K_PRO))
-		return false;
 	const auto before = manager.get_controller(playerIndex);
 	if (manager.is_gameprofile_set(playerIndex))
 	{
@@ -60,6 +52,16 @@ bool ApplySwitch2KitSetup(wxWindow* parent, size_t playerIndex, const Controller
 		wxMessageBox(_("This controller is assigned to another slot. Remove it there first."), _("Switch 2 Controllers"), wxOK | wxICON_INFORMATION, parent);
 		return false;
 	}
+	// Do not open another handle for a controller that this action will reject.
+	// Closing that temporary handle can stop rumble on its already-assigned slot.
+	if (!native->connect())
+	{
+		wxMessageBox(_("Connect the controller with Find Switch 2 Controllers first."), _("Switch 2 Controllers"), wxOK | wxICON_INFORMATION, parent);
+		return false;
+	}
+	const auto model = native->GetSwitch2Model();
+	if (!model || (*model != S2K_GAMECUBE && *model != S2K_PRO))
+		return false;
 	const auto snapshot = manager.ControllerConfigSnapshot(playerIndex);
 	if (before && !before->get_controllers().empty() && wxMessageBox(
 		_("Replace this slot's controller assignments and button mappings? A backup profile will be saved first. Use Profile > Load to restore it."),

@@ -41,6 +41,12 @@ class Wiring(unittest.TestCase):
         self.assertIn('manager.is_gameprofile_set(playerIndex)', setup)
         manager = text('src/input/InputManager.cpp')
         self.assertIn('FileStream::WriteFileAtomic', manager)
+    def test_rejected_setup_does_not_open_controller(self):
+        setup = text('src/gui/wxgui/input/Switch2KitSetup.cpp').split('bool ApplySwitch2KitSetup(')[1]
+        connect = setup.index('!native->connect()')
+        self.assertLess(setup.index('manager.is_gameprofile_set(playerIndex)'), connect)
+        self.assertLess(setup.index('type == EmulatedController::Wiimote'), connect)
+        self.assertLess(setup.index('AssignedElsewhere(playerIndex, native)'), connect)
     def test_saved_native_identity(self):
         self.assertIn('starts_with("s2k:")', text('src/input/ControllerFactory.cpp'))
         controller = text('src/input/api/SDL/SDLController.cpp')
