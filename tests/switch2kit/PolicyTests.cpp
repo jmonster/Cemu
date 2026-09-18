@@ -5,11 +5,14 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <functional>
+#include <thread>
 #include "ControllerEnums.h"
 #include "input/api/SDL/Switch2KitMapping.h"
 #include "input/api/SDL/Switch2KitIdentity.h"
 #include "input/api/SDL/Switch2KitSession.h"
 #include "wxgui/input/Switch2KitSetupTransaction.h"
+#include "wxgui/input/Switch2KitDeviceChanges.h"
 
 // Bluetooth is intentionally absent here. These execute the production policies
 // with the actual Cemu/SDL/SDK enum values and controlled host/storage boundaries.
@@ -175,6 +178,34 @@ void TransactionTests()
 	std::cout << "PASS backup-before-replace, backup refusal, save failure and exception rollback\n";
 }
 
+void DeviceChangeTests()
+{
+	using CemuSwitch2Kit::DeviceChanges;
+	auto windowState = std::make_shared<DeviceChanges>();
+	std::weak_ptr<DeviceChanges> retired = windowState;
+	// Model the shared ownership retained by EventService's bound slot. No GUI
+	// object is captured, and the actual production flag implements coalescing.
+	std::function<void()> callback = [state = windowState] { state->Notify(); };
+	assert(!windowState->Consume());
+	callback();
+	callback();
+	assert(windowState->Consume() && !windowState->Consume());
+	std::thread producer([callback] { for (int i = 0; i < 10000; ++i) callback(); });
+	producer.join();
+	assert(windowState->Consume() && !windowState->Consume());
+	// A retained in-flight callback can finish after the old window releases
+	// its state without accessing that window or notifying a new instance.
+	windowState.reset();
+	assert(!retired.expired());
+	auto reopened = std::make_shared<DeviceChanges>();
+	std::thread finishing([callback] { callback(); });
+	finishing.join();
+	assert(!reopened->Consume());
+	callback = {};
+	assert(retired.expired());
+	std::cout << "PASS coalesced notifications, in-flight window teardown and reopened-window isolation\n";
+}
+
 int main()
 {
 	using CemuSwitch2Kit::ValidPhysicalKey;
@@ -183,6 +214,7 @@ int main()
 		assert(!ValidPhysicalKey(invalid));
 	std::cout << "PASS persistent identity validation without ordinal fallback\n";
 	SessionTests();
+	DeviceChangeTests();
 	MappingTests<VPADController>();
 	MappingTests<ProController>();
 	MappingTests<ClassicController>();

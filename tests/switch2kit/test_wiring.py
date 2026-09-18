@@ -58,13 +58,20 @@ class Wiring(unittest.TestCase):
         provider = text('src/input/api/SDL/SDLControllerProvider.cpp')
         self.assertIn('availableSample()', provider)
         self.assertIn('loadMotionProfile', provider)
+    def test_notification_callback_does_not_own_window(self):
+        ui = text('src/gui/wxgui/input/InputSettings2.cpp')
+        self.assertIn('&CemuSwitch2Kit::DeviceChanges::Notify, m_switch2DevicesChanged', ui)
+        self.assertIn('std::shared_ptr<CemuSwitch2Kit::DeviceChanges>', text('src/gui/wxgui/input/InputSettings2.h'))
+        changed = ui.split('void InputSettings2::on_controller_changed()')[1].split('\n}')[0]
+        self.assertNotIn('m_switch2DevicesChanged = true', changed)
+        self.assertIn('wxASSERT(wxIsMainThread())', changed)
     def test_timer_ids_and_rumble_cancel(self):
         ui = text('src/gui/wxgui/input/settings/DefaultControllerSettings.cpp')
         self.assertIn('this, m_timer->GetId()', ui)
         self.assertIn('native->TryRumble(m_settings.rumble)', ui)
         self.assertIn('m_controller->stop_rumble()', ui)
         ui = text('src/gui/wxgui/input/InputSettings2.cpp')
-        self.assertIn('m_switch2DevicesChanged.exchange(false)', ui)
+        self.assertIn('m_switch2DevicesChanged->Consume()', ui)
         self.assertIn('delete m_switch2Timer;', ui)
 
 if __name__ == '__main__': unittest.main(verbosity=2)
