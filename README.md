@@ -12,7 +12,7 @@ Controller support is built into Cemu. There is no separate Switch2Kit app or co
 
 1. Sign in to GitHub, open this fork's [Native Switch2Kit builds](https://github.com/jmonster/Cemu/actions/workflows/native-switch2kit.yml), and select a successful run with a green check. Use **Native Switch2Kit**, not the ordinary **Build check** workflow.
 2. Under **Artifacts**, download **Cemu-Switch2Kit-arm64** for an Apple Silicon Mac or **Cemu-Switch2Kit-x86_64** for an Intel Mac. Choose the application artifact, not a diagnostics artifact.
-3. Extract the downloaded ZIP, then extract **integration-app.zip** inside it. Move **Cemu_release.app** to Applications and open it. Reopen this same app for later sessions.
+3. Extract the downloaded ZIP, open the **build-switch2kit** folder, and extract **integration-app.zip**. Move **Cemu_release.app** to Applications and open it. Reopen this same app for later sessions.
 
 Downloads currently come from GitHub Actions, not a published release. Application artifacts expire after 14 days; when no application download is available, use [Build from source](#build-from-source-alternative) below. Ordinary upstream Cemu downloads do not include this Switch2Kit integration.
 
