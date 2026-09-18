@@ -384,7 +384,7 @@ wxWindow* InputSettings2::initialize_page(size_t index)
 			update_state();
 			RefreshSwitch2Controllers();
 		});
-		sizer->Add(recommended, wxGBPosition(5, 3), wxGBSpan(1, 3), wxALIGN_CENTER_VERTICAL | wxALL | wxEXPAND, 5);
+		sizer->Add(recommended, wxGBPosition(5, 3), wxGBSpan(1, 3), wxALIGN_CENTER_VERTICAL | wxALL, 5);
 #endif
 
 	}
@@ -872,6 +872,7 @@ void InputSettings2::on_emulated_controller_dropdown(wxCommandEvent& event)
 
 	emulated_controllers->Clear();
 	emulated_controllers->AppendString(_("Disabled"));
+
 	if (vpad_count < InputManager::kMaxVPADControllers || is_gamepad_selected)
 		emulated_controllers->Append(wxString::FromUTF8(EmulatedController::type_to_string(EmulatedController::Type::VPAD)));
 
@@ -1038,7 +1039,7 @@ void InputSettings2::on_controller_clear(wxCommandEvent& event)
 	if (page_data.m_controller) {
 		const auto type = page_data.m_controller->type();
 
-		page_data.m_panels[page_data.m_controller->type()]->reset_configuration();
+		page_data.m_panels[type]->reset_configuration();
 		page_data.m_controller->clear_mappings();
 	}
 }

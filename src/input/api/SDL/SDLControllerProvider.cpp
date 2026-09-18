@@ -332,7 +332,7 @@ void SDLControllerProvider::HandleSDLEvent(SDL_Event& event)
 		{
 			break;
 		}
-		case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:		/**< Game controller touchpad finger was touched */
+		case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:		/**< Game controller touchpad was touched */
 		{
 			break;
 		}
