@@ -19,6 +19,8 @@
 struct Host
 {
 	int result = 0, discoveries = 0, pumps = 0, stops = 0, shutdowns = 0;
+	int setAutomaticDiscovery(bool) { return 0; }
+	int start() { return result; }
 	int discover() { ++discoveries; return result; }
 	int pump() { ++pumps; return 0; }
 	int stop() { ++stops; return 0; }

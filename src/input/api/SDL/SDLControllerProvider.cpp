@@ -22,7 +22,11 @@ std::unordered_map<SDL_JoystickID, SDLControllerProvider::MotionState> SDLContro
 
 #ifdef HAVE_SWITCH2KIT
 #include "SDLHost.hpp"
+#include "config/ActiveSettings.h"
+#include "input/api/SDL/Switch2KitAutoConnectConfig.h"
 #include "input/api/SDL/Switch2KitSession.h"
+#include <span>
+#include <wx/app.h>
 static Switch2KitSession<Switch2Kit::SDLHost>& NativeSession()
 {
 	static Switch2KitSession<Switch2Kit::SDLHost> session;
@@ -32,17 +36,46 @@ static Switch2Kit::SDLHost& nativeControllers()
 {
 	return NativeSession().GetHost();
 }
+static bool LoadSwitch2AutoConnect(bool& enabled)
+{
+	return CemuSwitch2Kit::AutoConnectConfig::Load(ActiveSettings::GetConfigPath("Switch2Kit.ini"), enabled);
+}
+static bool SaveSwitch2AutoConnect(bool enabled)
+{
+	return CemuSwitch2Kit::AutoConnectConfig::Save(ActiveSettings::GetConfigPath("Switch2Kit.ini"), enabled,
+		[](const auto& path, std::string bytes) {
+			return FileStream::WriteFileAtomic(path,
+				std::span<uint8>(reinterpret_cast<uint8*>(bytes.data()), bytes.size()));
+		});
+}
 int SDLControllerProvider::FindSwitch2Controllers() { return NativeSession().Discover(); }
 int SDLControllerProvider::DisconnectSwitch2Controllers() { return NativeSession().Stop(); }
+bool SDLControllerProvider::Switch2AutoConnect() { return NativeSession().AutoConnect(); }
+int SDLControllerProvider::SetSwitch2AutoConnect(bool enabled)
+{
+	return NativeSession().SetAutoConnect(enabled, SaveSwitch2AutoConnect);
+}
 std::string SDLControllerProvider::Switch2ControllerStatus()
 {
+	auto& session = NativeSession();
+	const int error = session.Error();
+	if (error == Switch2KitSession<Switch2Kit::SDLHost>::ConfigurationError)
+		return "Could not read or save Switch2Kit.ini. Check configuration access, then retry the automatic connection setting.";
+	if (error != 0)
+		return "Controller input error " + std::to_string(error) + ". Use Find to retry; after Disconnect, wait a moment.";
+	if (!session.IsEnabled())
+		return "Switch 2 controller support is stopped. Use Find to resume, then hold Sync for initial pairing.";
 	const auto state = nativeControllers().snapshot();
-	if (!NativeSession().IsEnabled()) return "Select Find, then hold the controller Sync button.";
 	if (state.bluetooth == S2K_BT_UNAUTHORIZED) return "Allow Cemu Bluetooth access in System Settings.";
 	if (state.bluetooth == S2K_BT_OFF) return "Turn on Bluetooth in System Settings.";
 	if (state.bluetooth == S2K_BT_UNSUPPORTED) return "Bluetooth is unavailable on this Mac.";
-	return std::to_string(state.count) + " connected; " +
-		(state.discovery == S2K_DISCOVERY_SCANNING ? "searching" : "discovery idle");
+	const auto connected = std::to_string(state.count) + " connected; ";
+	if (session.AutoConnect())
+		return connected + (state.discovery == S2K_DISCOVERY_SCANNING ?
+			"listening for Switch 2 controllers. Turn the controller on to reconnect; hold Sync for initial pairing." :
+			"automatic connection enabled; waiting for Bluetooth or discovery capacity.");
+	return connected + (state.discovery == S2K_DISCOVERY_SCANNING ?
+		"searching for 60 seconds; hold Sync." : "discovery idle. Use Find to search again.");
 }
 SDL_JoystickID SDLControllerProvider::FindSwitch2Device(std::string_view key)
 {
@@ -229,6 +262,12 @@ void SDLControllerProvider::InitSDL()
 	{
 		cemuLog_log(LogType::Force, "Couldn't enable SDL gamecontroller event polling: {}", SDL_GetError());
 	}
+#ifdef HAVE_SWITCH2KIT
+	NativeSession().LoadAutoConnect(LoadSwitch2AutoConnect);
+	// Saved consent starts once on the main run loop, never from input polling.
+	// Stop/Shutdown and explicit settings actions fence this deferred callback.
+	wxTheApp->CallAfter([] { NativeSession().StartOnce(); });
+#endif
 }
 
 void SDLControllerProvider::ShutdownSDL()
@@ -293,7 +332,7 @@ void SDLControllerProvider::HandleSDLEvent(SDL_Event& event)
 		{
 			break;
 		}
-		case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:		/**< Game controller touchpad was touched */
+		case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:		/**< Game controller touchpad finger was touched */
 		{
 			break;
 		}

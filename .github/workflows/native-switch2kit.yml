@@ -21,7 +21,9 @@ jobs:
           ref: f87239e71e42da91ca317a12eefb82cfbf3393eb
           path: test-sdl
           persist-credentials: false
-      - name: Execute mapping, identity, setup rollback and session regressions
+      - name: Install headers for production INI policy tests
+        run: sudo apt-get update && sudo apt-get install -y libboost-dev
+      - name: Execute mapping, identity, setup rollback, session and autoconnect regressions
         run: python3 tests/switch2kit/run.py --sdl test-sdl --sanitize
   macos:
     if: github.repository == 'jmonster/Cemu'
