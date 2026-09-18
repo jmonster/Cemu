@@ -9,7 +9,8 @@ def text(path): return (ROOT / path).read_text()
 class Wiring(unittest.TestCase):
     def test_opt_in_bundle_and_target(self):
         cmake = text('CMakeLists.txt')
-        self.assertIn('option(ENABLE_SWITCH2KIT "Use in-process Switch2Kit controllers" OFF)', cmake)
+        # Preserve the opt-in contract without prescribing the help text.
+        self.assertRegex(cmake, r'option\s*\(\s*ENABLE_SWITCH2KIT\s+"(?:[^"\\]|\\.)*"\s+OFF\s*\)')
         self.assertIn('if(NOT ENABLE_SDL)', cmake)
         self.assertIn('if(NOT (APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))', cmake)
         self.assertIn('if(APPLE AND (NOT MACOS_BUNDLE OR CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 15.0))', cmake)

@@ -6,7 +6,7 @@ permissions:
   contents: read
 concurrency:
   group: switch2kit-linux-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   linux:
     runs-on: ubuntu-24.04

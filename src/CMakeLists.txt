@@ -240,3 +240,7 @@ endif()
 if (BSD)
 	target_link_libraries(CemuBin PRIVATE execinfo SPIRV-Tools SPIRV-Tools-opt)
 endif()
+
+if(WIN32 AND ENABLE_SWITCH2KIT)
+    switch2kit_embed_windows(CemuBin)
+endif()
