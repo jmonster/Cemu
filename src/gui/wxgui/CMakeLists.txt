@@ -196,3 +196,8 @@ endif()
 if(ALLOW_PORTABLE)
 	target_compile_definitions(CemuWxGui PRIVATE CEMU_ALLOW_PORTABLE)
 endif ()
+
+if(ENABLE_SWITCH2KIT)
+	target_sources(CemuWxGui PRIVATE input/Switch2KitSetup.cpp input/Switch2KitSetup.h)
+	target_link_libraries(CemuWxGui PRIVATE Switch2Kit::SDL3)
+endif()

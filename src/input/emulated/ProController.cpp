@@ -1,4 +1,7 @@
 #include "input/emulated/ProController.h"
+#ifdef HAVE_SWITCH2KIT
+#include "input/api/SDL/Switch2KitMapping.h"
+#endif
 
 #include "input/api/Controller.h"
 #ifdef HAS_SDL
@@ -140,6 +143,14 @@ bool ProController::set_default_mapping(const std::shared_ptr<ControllerBase>& c
 #ifdef HAS_SDL
 	case InputAPI::SDLController: {
 		const auto sdl_controller = std::static_pointer_cast<SDLController>(controller);
+#ifdef HAVE_SWITCH2KIT
+		if (const auto model = sdl_controller->GetSwitch2Model();
+			model && CemuSwitch2Kit::IsSupportedModel(*model))
+		{
+			mapping = CemuSwitch2Kit::GamepadMapping<ProController>(*model);
+		}
+		else
+#endif
 		if (sdl_controller->get_guid() == SDLController::kLeftJoyCon)
 		{
 			mapping =

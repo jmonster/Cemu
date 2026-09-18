@@ -16,6 +16,13 @@
 #include <wx/statline.h>
 #include <wx/bmpbuttn.h>
 #include <wx/settings.h>
+#ifdef HAVE_SWITCH2KIT
+#include <wx/choice.h>
+#include <wx/msgdlg.h>
+#include "input/api/SDL/SDLController.h"
+#include "input/api/SDL/Switch2KitMapping.h"
+#include "wxgui/input/Switch2KitSetup.h"
+#endif
 
 #include "config/ActiveSettings.h"
 #include "wxgui/input/InputAPIAddWindow.h"
@@ -44,6 +51,9 @@ using wxControllerData = wxCustomData<ControllerPtr>;
 struct ControllerPage
 {
 	EmulatedControllerPtr m_controller;
+#ifdef HAVE_SWITCH2KIT
+	wxChoice* m_switch2Choice = nullptr;
+#endif
 
 	// profiles
 	wxComboBox* m_profiles;
@@ -78,6 +88,23 @@ InputSettings2::InputSettings2(wxWindow* parent)
 	m_low_battery = wxHelper::LoadThemedBitmapFromPNG(INPUT_LOW_BATTERY_png, sizeof(INPUT_LOW_BATTERY_png), wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
 
 	auto* sizer = new wxBoxSizer(wxVERTICAL);
+#ifdef HAVE_SWITCH2KIT
+	auto* discovery = new wxBoxSizer(wxHORIZONTAL);
+	auto* find = new wxButton(this, wxID_ANY, _("Find Switch 2 Controllers"));
+	auto* stop = new wxButton(this, wxID_ANY, _("Disconnect Switch 2 Controllers"));
+	discovery->Add(find, 0, wxALL, 5);
+	discovery->Add(stop, 0, wxALL, 5);
+	m_switch2Status = new wxStaticText(this, wxID_ANY, _("Hold Sync while searching, then choose your controller beside Emulated controller."));
+	m_switch2Status->Wrap(600);
+	sizer->Add(discovery, 0, wxEXPAND);
+	sizer->Add(m_switch2Status, 0, wxLEFT | wxRIGHT | wxBOTTOM, 5);
+	find->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+		const int result = SDLControllerProvider::FindSwitch2Controllers();
+		if (result != 0)
+			wxMessageBox(wxString::Format(_("Discovery could not start (%d). Allow Bluetooth access and close other controller apps. After Disconnect, wait a moment before retrying."), result), _("Switch 2 Controllers"), wxOK | wxICON_WARNING, this);
+	});
+	stop->Bind(wxEVT_BUTTON, [](wxCommandEvent&) { SDLControllerProvider::DisconnectSwitch2Controllers(); });
+#endif
 
 	m_notebook = new wxNotebook(this, wxID_ANY);
 	for(size_t i = 0; i < InputManager::kMaxController; ++i)
@@ -113,12 +140,27 @@ InputSettings2::InputSettings2(wxWindow* parent)
 
 	update_state();
 
-	Bind(wxEVT_TIMER, &InputSettings2::on_timer, this);
-
 	m_timer = new wxTimer(this);
+	Bind(wxEVT_TIMER, &InputSettings2::on_timer, this, m_timer->GetId());
 	m_timer->Start(25);
+#ifdef HAVE_SWITCH2KIT
+	m_switch2Timer = new wxTimer(this);
+	Bind(wxEVT_TIMER, [this](wxTimerEvent&) {
+		m_switch2Status->SetLabel(wxString::FromUTF8(SDLControllerProvider::Switch2ControllerStatus()));
+		if (m_switch2DevicesChanged->Consume())
+			on_controller_changed();
+	}, m_switch2Timer->GetId());
+	m_switch2Timer->Start(500);
+	RefreshSwitch2Controllers();
+#endif
 
+#ifdef HAVE_SWITCH2KIT
+	// Keep a callback already in flight away from the window's lifetime.
+	m_controller_changed = EventService::instance().connect<Events::ControllerChanged>(
+		&CemuSwitch2Kit::DeviceChanges::Notify, m_switch2DevicesChanged);
+#else
 	m_controller_changed = EventService::instance().connect<Events::ControllerChanged>(&InputSettings2::on_controller_changed, this);
+#endif
 }
 
 InputSettings2::~InputSettings2()
@@ -127,6 +169,10 @@ InputSettings2::~InputSettings2()
 
 	g_inputConfigWindowHasFocus = false;
 	m_timer->Stop();
+#ifdef HAVE_SWITCH2KIT
+	m_switch2Timer->Stop();
+	delete m_switch2Timer;
+#endif
 	InputManager::instance().save();
 }
 
@@ -222,6 +268,27 @@ wxWindow* InputSettings2::initialize_page(size_t index)
 
 		sizer->Add(econtroller_box, wxGBPosition(2, 1), wxDefaultSpan, wxALIGN_CENTER_VERTICAL | wxALL | wxEXPAND, 5);
 		page_data.m_emulated_controller = econtroller_box;
+#ifdef HAVE_SWITCH2KIT
+		auto* choice = page_data.m_switch2Choice = new wxChoice(page, wxID_ANY);
+		choice->SetName(_("Switch 2 controller quick setup"));
+		choice->SetToolTip(_("Choose a connected GameCube or Pro controller to configure this slot automatically. Use + below to combine Joy-Con halves or add other input devices."));
+		choice->Append(_("Choose Switch 2 controller..."));
+		choice->SetSelection(0);
+		choice->SetMinSize(wxSize(260, -1));
+		choice->Bind(wxEVT_CHOICE, [this, choice, index](wxCommandEvent&) {
+			const int selected = choice->GetSelection();
+			if (selected <= 0)
+				return;
+			const auto* data = static_cast<wxControllerData*>(choice->GetClientObject(selected));
+			// Copy before entering a modal dialog; hotplug can replace choice data.
+			const ControllerPtr source = data ? data->GetData() : ControllerPtr{};
+			if (ApplySwitch2KitSetup(this, index, source))
+				static_cast<wxControllerPageData*>(m_notebook->GetPage(index)->GetClientObject())->ref().m_controller = InputManager::instance().get_controller(index);
+			update_state();
+			RefreshSwitch2Controllers();
+		});
+		sizer->Add(choice, wxGBPosition(2, 2), wxGBSpan(1, 3), wxALIGN_CENTER_VERTICAL | wxALL | wxEXPAND, 5);
+#endif
 	}
 
 	sizer->Add(new wxStaticLine(page), wxGBPosition(3, 0), wxGBSpan(1, 6), wxEXPAND);
@@ -293,6 +360,17 @@ wxWindow* InputSettings2::initialize_page(size_t index)
 		page_data.m_controller_calibrate = calibrate;
 		page_data.m_controller_clear = clear;
 		page_data.m_controller_connected = connected_button;
+#ifdef HAVE_SWITCH2KIT
+		auto* recommended = new wxButton(page, wxID_ANY, _("Use recommended mapping"));
+		recommended->Bind(wxEVT_BUTTON, [this, index](wxCommandEvent&) {
+			const auto controller = get_active_controller();
+			if (ApplySwitch2KitSetup(this, index, controller))
+				static_cast<wxControllerPageData*>(m_notebook->GetPage(index)->GetClientObject())->ref().m_controller = InputManager::instance().get_controller(index);
+			update_state();
+			RefreshSwitch2Controllers();
+		});
+		sizer->Add(recommended, wxGBPosition(5, 3), wxGBSpan(1, 3), wxALIGN_CENTER_VERTICAL | wxALL, 5);
+#endif
 
 	}
 
@@ -342,6 +420,9 @@ void InputSettings2::update_state()
 	auto* page_data_ptr = (wxControllerPageData*)page->GetClientObject();
 	wxASSERT(page_data_ptr);
 	auto& page_data = page_data_ptr->ref();
+#ifdef HAVE_SWITCH2KIT
+	RefreshSwitch2Controllers();
+#endif
 
 	page_data.m_profile_status->Hide();
 
@@ -480,6 +561,10 @@ void InputSettings2::update_state()
 
 void InputSettings2::on_controller_changed()
 {
+#ifdef HAVE_SWITCH2KIT
+	wxASSERT(wxIsMainThread());
+	RefreshSwitch2Controllers();
+#endif
 	for(auto i = 0 ; i < m_notebook->GetPageCount(); ++i)
 	{
 		auto* page = m_notebook->GetPage(i);
@@ -870,6 +955,11 @@ void InputSettings2::on_controller_add(wxCommandEvent& event)
 
 	const auto api_type = wnd.get_type();
 	controller->connect();
+#ifdef HAVE_SWITCH2KIT
+	if (const auto native = std::dynamic_pointer_cast<SDLController>(controller);
+		native && native->IsSwitch2Controller())
+		native->set_rumble(1.0f);
+#endif
 	const int index = page_data.m_controllers->Append(fmt::format("{} [{}]", controller->display_name(), to_string(api_type)), new wxCustomData(controller));
 
 	page_data.m_controllers->Select(index);
@@ -974,3 +1064,52 @@ void InputSettings2::on_controller_settings(wxCommandEvent& event)
 	#endif
 	}
 }
+
+#ifdef HAVE_SWITCH2KIT
+void InputSettings2::RefreshSwitch2Controllers()
+{
+	const auto provider = InputManager::instance().get_api_provider(InputAPI::SDLController);
+	if (!provider)
+		return;
+	const auto available = provider->get_controllers();
+	for (size_t i = 0; i < m_notebook->GetPageCount(); ++i)
+	{
+		const auto* data = static_cast<wxControllerPageData*>(m_notebook->GetPage(i)->GetClientObject());
+		if (!data || !data->GetData().m_switch2Choice)
+			continue;
+		auto* choice = data->GetData().m_switch2Choice;
+		std::string selectedKey;
+		const auto current = InputManager::instance().get_controller(i);
+		if (current)
+			for (const auto& source : current->get_controllers())
+				if (const auto native = std::dynamic_pointer_cast<SDLController>(source);
+					native && native->IsSwitch2Controller())
+					selectedKey = source->uuid();
+		choice->Clear();
+		choice->Append(_("Choose Switch 2 controller..."));
+		choice->SetSelection(0);
+		unsigned ordinal = 0;
+		for (const auto& source : available)
+		{
+			auto native = std::dynamic_pointer_cast<SDLController>(source);
+			if (!native || !native->IsSwitch2Controller())
+				continue;
+			// Enumeration returns metadata without opening a gamepad or touching
+			// its rumble/sensors. Only explicit assignment connects a new source.
+			const auto model = native->GetSwitch2Model();
+			if (!model || (*model != S2K_GAMECUBE && *model != S2K_PRO))
+				continue;
+			ControllerPtr selectedSource = native;
+			if (current)
+				for (const auto& existing : current->get_controllers())
+					if (*existing == *native)
+						selectedSource = existing;
+			const auto item = choice->Append(wxString::Format("%s (%u)",
+				wxString::FromUTF8(native->display_name()), ++ordinal), new wxControllerData(selectedSource));
+			if (native->uuid() == selectedKey)
+				choice->SetSelection(item);
+		}
+		choice->Enable(choice->GetCount() > 1);
+	}
+}
+#endif

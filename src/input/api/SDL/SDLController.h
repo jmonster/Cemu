@@ -5,12 +5,27 @@
 
 #include <SDL3/SDL_gamepad.h>
 
+#ifdef HAVE_SWITCH2KIT
+namespace Switch2Kit { class CemuSensorPolicy; }
+#endif
+
 class SDLController : public Controller<SDLControllerProvider>
 {
 public:
 	SDLController(const SDL_GUID& guid, size_t guid_index);
 	SDLController(const SDL_GUID& guid, size_t guid_index, std::string_view display_name);
 	
+#ifdef HAVE_SWITCH2KIT
+	SDLController(std::string_view physical_key, std::string_view display_name, unsigned model = 0);
+	bool IsSwitch2Controller() const { return !m_physical_key.empty(); }
+	std::optional<unsigned> GetSwitch2Model();
+	void SetPlayerIndex(size_t index);
+	int set_motion_profile(const std::string& path);
+	std::string motion_status() const;
+	std::optional<MotionSample> get_available_motion_sample() override;
+	void save(pugi::xml_node& node) override;
+	void load(const pugi::xml_node& node) override;
+#endif
 	~SDLController() override;
 	
 	std::string_view api_name() const override
@@ -23,9 +38,11 @@ public:
 	bool is_connected() override;
 	bool connect() override;
 	
-	bool has_motion() override { return m_has_gyro && m_has_accel; }
-	bool has_rumble() override { return m_has_rumble; }
+	bool has_motion() override { std::scoped_lock lock(m_controller_mutex); return m_has_gyro && m_has_accel; }
+	bool has_rumble() override { std::scoped_lock lock(m_controller_mutex); return m_has_rumble; }
 	
+	// Reports command acceptance, not a physical hardware measurement.
+	bool TryRumble(float strength);
 	void start_rumble() override;
 	void stop_rumble() override;
 
@@ -46,7 +63,17 @@ private:
 
 	size_t m_guid_index;
 	SDL_GUID m_guid;
-	std::recursive_mutex m_controller_mutex;
+#ifdef HAVE_SWITCH2KIT
+	void motion_settings_changed() override;
+	std::string m_physical_key;
+	std::string m_motion_profile_path;
+	bool m_motion_profile_error = false;
+	bool m_motion_policy_error = false;
+	std::optional<int> m_playerIndex;
+	unsigned m_switch2Model = 0;
+	std::unique_ptr<Switch2Kit::CemuSensorPolicy> m_motion_policy;
+#endif
+	mutable std::recursive_mutex m_controller_mutex;
 	SDL_Gamepad* m_controller = nullptr;
 	SDL_JoystickID m_diid = -1;
 

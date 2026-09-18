@@ -440,8 +440,10 @@ void InputManager::save() noexcept
 	}
 }
 
-bool InputManager::save(size_t player_index, std::string_view filename)
+bool InputManager::save(size_t player_index, std::string_view filename, bool updateProfileName)
 {
+	if (player_index >= kMaxController)
+		return false;
 	// dont overwrite files if set by gameprofile
 	if (m_is_gameprofile_set[player_index])
 		return true;
@@ -461,6 +463,20 @@ bool InputManager::save(size_t player_index, std::string_view filename)
 
 	file_path.replace_extension(".xml"); // force .xml extension
 
+	const std::string profileName = !is_default_file && updateProfileName ?
+		std::string{filename} : emulated_controller->get_profile_name();
+	std::string xmlStr = SerializeControllerProfile(emulated_controller, profileName);
+	if (!FileStream::WriteFileAtomic(file_path,
+		std::span<uint8>(reinterpret_cast<uint8*>(xmlStr.data()), xmlStr.size())))
+		return false;
+	if (!is_default_file && updateProfileName)
+		emulated_controller->m_profile_name = profileName;
+	return true;
+}
+
+std::string InputManager::SerializeControllerProfile(const EmulatedControllerPtr& emulated_controller, const std::string& profileName)
+{
+	std::shared_lock lock(emulated_controller->m_mutex);
 	pugi::xml_document doc;
 	auto declaration_node = doc.append_child(pugi::node_declaration);
 	declaration_node.append_attribute("version") = "1.0";
@@ -471,12 +487,8 @@ bool InputManager::save(size_t player_index, std::string_view filename)
 		emulated_controller->type_string()
 	}.c_str());
 
-	if(!is_default_file)
-		emulated_controller->m_profile_name = std::string{filename};
-
-	if (emulated_controller->has_profile_name())
-		emulated_controller_node.append_child("profile").append_child(pugi::node_pcdata).set_value(
-			emulated_controller->get_profile_name().c_str());
+	if (!profileName.empty() && profileName != "default")
+		emulated_controller_node.append_child("profile").text().set(profileName.c_str());
 
 	// custom settings
 	emulated_controller->save(emulated_controller_node);
@@ -539,16 +551,18 @@ bool InputManager::save(size_t player_index, std::string_view filename)
 			}
 		}
 	}
-	FileStream* fs = FileStream::createFile2(file_path);
-	if (!fs)
-		return false;
 	std::stringstream xmlData;
 	doc.save(xmlData);
-	std::string xmlStr = xmlData.str();
-	fs->writeData(xmlStr.data(), xmlStr.size());
-	delete fs;
-	return true;
+	return xmlData.str();
 }
+
+#ifdef HAVE_SWITCH2KIT
+std::string InputManager::ControllerConfigSnapshot(size_t playerIndex)
+{
+	const auto controller = get_controller(playerIndex);
+	return controller ? SerializeControllerProfile(controller, controller->get_profile_name()) : std::string{};
+}
+#endif
 
 bool InputManager::is_gameprofile_set(size_t player_index) const
 {

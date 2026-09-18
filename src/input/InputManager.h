@@ -42,9 +42,12 @@ public:
 	bool migrate_config(const fs::path& file_path);
 
 	void save() noexcept;
-	bool save(size_t player_index, std::string_view filename = {});
+	bool save(size_t player_index, std::string_view filename = {}, bool updateProfileName = true);
 
 	bool is_gameprofile_set(size_t player_index) const;
+#ifdef HAVE_SWITCH2KIT
+	std::string ControllerConfigSnapshot(size_t playerIndex);
+#endif
 
 	void Shutdown(); 
 	
@@ -95,6 +98,7 @@ public:
 	std::atomic<float> m_mouse_wheel;
 
 private:
+	static std::string SerializeControllerProfile(const EmulatedControllerPtr& controller, const std::string& profileName);
 	void update_thread();
 
 	std::thread m_update_thread;

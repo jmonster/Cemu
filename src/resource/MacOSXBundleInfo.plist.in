@@ -65,5 +65,6 @@
 			<string>Viewer</string>
 		</dict>
 	</array>
+    ${SWITCH2KIT_BLUETOOTH_USAGE}
 </dict>
 </plist>

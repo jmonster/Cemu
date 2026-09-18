@@ -1,0 +1,143 @@
+name: Native Switch2Kit
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-switch2kit-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  policies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: git submodule update --init dependencies/Switch2Kit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: libsdl-org/SDL
+          ref: f87239e71e42da91ca317a12eefb82cfbf3393eb
+          path: test-sdl
+          persist-credentials: false
+      - name: Execute mapping, identity, setup rollback and session regressions
+        run: python3 tests/switch2kit/run.py --sdl test-sdl --sanitize
+  macos:
+    if: github.repository == 'jmonster/Cemu'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      VCPKG_MAX_CONCURRENCY: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Install native tools
+        run: brew install cmake ninja nasm automake libtool molten-vk
+      - name: Build the complete application
+        run: |
+          set -o pipefail
+          test "$(uname -m)" = '${{ matrix.arch }}'
+          bash scripts/build-switch2kit.sh 2>&1 | tee native-build.log
+      - name: Check production policies on the native architecture
+        run: python3 tests/switch2kit/run.py --sanitize
+      - name: Inspect embedded SDK, architecture and application signature
+        run: |
+          codesign --verify --deep --strict bin/Cemu_release.app
+          python3 dependencies/Switch2Kit/Integrations/Emulators/verify-bundle.py \
+            cemu . build-switch2kit --architecture '${{ matrix.arch }}'
+      - name: Launch, quit and relaunch the exact ZIP with build dependencies denied
+        run: |
+          xcrun swiftc -swift-version 6 -warnings-as-errors \
+            dependencies/Switch2Kit/tests/emulator-launch/Observe.swift \
+            -o "$RUNNER_TEMP/cemu-window-observer"
+          mkdir "$RUNNER_TEMP/cemu-app"
+          ditto -x -k build-switch2kit/integration-app.zip "$RUNNER_TEMP/cemu-app"
+          python3 dependencies/Switch2Kit/tests/emulator-launch/verify.py cemu \
+            "$RUNNER_TEMP/cemu-app/Cemu_release.app" "$RUNNER_TEMP/cemu-window-observer" \
+            "$PWD/launch-results"
+      - name: Check the disabled option retains the upstream deployment target
+        run: |
+          cmake -S . -B build-switch2kit -DENABLE_SWITCH2KIT=OFF \
+            -DMACOS_BUNDLE=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=13.4
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          commands = json.loads(Path('build-switch2kit/compile_commands.json').read_text())
+          assert not any('HAVE_SWITCH2KIT' in row['command'] for row in commands)
+          assert not any('Switch2KitSetup.cpp' in row['file'] for row in commands)
+          cache = Path('build-switch2kit/CMakeCache.txt').read_text()
+          # Command-line cache entries may be STRING or UNINITIALIZED. Check
+          # the deployment value, not CMake's incidental cache type spelling.
+          values = {line.split(':', 1)[0]: line.split('=', 1)[1]
+                    for line in cache.splitlines()
+                    if not line.startswith(('#', '//')) and ':' in line and '=' in line}
+          assert values.get('CMAKE_OSX_DEPLOYMENT_TARGET') == '13.4', values.get('CMAKE_OSX_DEPLOYMENT_TARGET')
+          print('PASS disabled option: no native backend sources or defines; macOS 13.4 retained')
+          PY
+      - name: Qualified development application
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Cemu-Switch2Kit-${{ matrix.arch }}
+          path: |
+            build-switch2kit/integration-app.zip
+            build-switch2kit/integration-inspection.json
+            launch-results/launch.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Native diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Cemu-Switch2Kit-${{ matrix.arch }}-diagnostics
+          path: |
+            native-build.log
+            build-switch2kit/integration-native-diagnostics.txt
+            build-switch2kit/CMakeCache.txt
+            build-switch2kit/CMakeFiles/CMakeConfigureLog.yaml
+            launch-results
+  sdk:
+    if: github.repository == 'jmonster/Cemu'
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: git submodule update --init dependencies/Switch2Kit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: libsdl-org/SDL
+          ref: f87239e71e42da91ca317a12eefb82cfbf3393eb
+          path: test-sdl
+          persist-credentials: false
+      - run: brew install cmake ninja boost
+      - name: Exercise the pinned SDK, motor packets, real SDL and Cemu motion consumer
+        run: |
+          set -o pipefail
+          swift test --package-path dependencies/Switch2Kit -Xswiftc -warnings-as-errors 2>&1 | tee sdk-tests.log
+          bash dependencies/Switch2Kit/tests/rumble/run.sh 2>&1 | tee motor-tests.log
+          bash dependencies/Switch2Kit/tests/session/run.sh 2>&1 | tee session-tests.log
+          S2K_SDL_SOURCE="$PWD/test-sdl" \
+            bash dependencies/Switch2Kit/tests/sdl-inprocess/verify.sh 2>&1 | tee sdl-tests.log
+          S2K_SDL_SOURCE="$PWD/test-sdl" S2K_CEMU_SOURCE="$PWD" \
+            bash dependencies/Switch2Kit/tests/emulator-host/verify.sh 2>&1 | tee host-tests.log
+      - name: Test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Cemu-Switch2Kit-sdk-diagnostics
+          path: '*-tests.log'

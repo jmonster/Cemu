@@ -8,6 +8,12 @@
 #include <wx/statline.h>
 #include <wx/checkbox.h>
 #include <wx/statbox.h>
+#ifdef HAVE_SWITCH2KIT
+#include <wx/filedlg.h>
+#include <wx/msgdlg.h>
+#include <wx/timer.h>
+#include "input/api/SDL/SDLController.h"
+#endif
 
 #include "wxgui/helpers/wxControlObject.h"
 #include "wxgui/helpers/wxHelpers.h"
@@ -37,6 +43,38 @@ DefaultControllerSettings::DefaultControllerSettings(wxWindow* parent, const wxP
 		m_use_motion->Enable(m_controller->has_motion());
 		box_sizer->Add(m_use_motion, 0, wxEXPAND | wxALL, 5);
 
+#ifdef HAVE_SWITCH2KIT
+		if (const auto native = std::dynamic_pointer_cast<SDLController>(m_controller);
+			native && native->uuid().starts_with("s2k:"))
+		{
+			auto* profile = new wxButton(box, wxID_ANY, _("Choose Switch2Kit motion profile..."));
+			auto* remove = new wxButton(box, wxID_ANY, _("Remove motion profile"));
+			auto* status = new wxStaticText(box, wxID_ANY, wxString::FromUTF8(native->motion_status()));
+			box_sizer->Add(profile, 0, wxALL | wxEXPAND, 5);
+			box_sizer->Add(remove, 0, wxALL | wxEXPAND, 5);
+			box_sizer->Add(status, 0, wxALL | wxEXPAND, 5);
+			profile->Bind(wxEVT_BUTTON, [this, native, status](wxCommandEvent&) {
+				wxFileDialog dialog(this, _("Choose measured device calibration"), {}, {},
+					_("Switch2Kit profile (*.s2kmotion)|*.s2kmotion|All files|*"), wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+				if (dialog.ShowModal() == wxID_OK)
+				{
+					native->set_motion_profile(dialog.GetPath().utf8_string());
+					status->SetLabel(wxString::FromUTF8(native->motion_status()));
+				}
+			});
+			remove->Bind(wxEVT_BUTTON, [native, status](wxCommandEvent&) {
+				native->set_motion_profile({});
+				status->SetLabel(wxString::FromUTF8(native->motion_status()));
+			});
+			m_motion_timer = std::make_unique<wxTimer>(this);
+			Bind(wxEVT_TIMER, [this, native, status](wxTimerEvent&) {
+				native->connect();
+				m_use_motion->Enable(native->has_motion());
+				status->SetLabel(wxString::FromUTF8(native->motion_status()));
+			}, m_motion_timer->GetId());
+			m_motion_timer->Start(500);
+		}
+#endif
 		// Vibration
 		auto* rumbleSizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -50,6 +88,32 @@ DefaultControllerSettings::DefaultControllerSettings(wxWindow* parent, const wxP
 		m_rumble->Bind(wxEVT_SLIDER, &DefaultControllerSettings::on_rumble_change, this, wxID_ANY, wxID_ANY, new wxControlObject(text));
 
 		box_sizer->Add(rumbleSizer);
+#ifdef HAVE_SWITCH2KIT
+		if (const auto native = std::dynamic_pointer_cast<SDLController>(m_controller);
+			native && native->IsSwitch2Controller())
+		{
+			auto* test = new wxButton(box, wxID_ANY, _("Test rumble"));
+			test->Bind(wxEVT_BUTTON, [this, native](wxCommandEvent&) {
+				if (!native->connect() || !native->has_rumble())
+				{
+					wxMessageBox(_("Connect the controller before testing rumble."), _("Switch 2 Controllers"), wxOK | wxICON_INFORMATION, this);
+					return;
+				}
+				if (m_settings.rumble <= 0)
+				{
+					wxMessageBox(_("Increase the Rumble slider above 0% to test."), _("Switch 2 Controllers"), wxOK | wxICON_INFORMATION, this);
+					return;
+				}
+				if (!native->TryRumble(m_settings.rumble))
+				{
+					wxMessageBox(_("The rumble command was not accepted. Reconnect the controller and try again."), _("Switch 2 Controllers"), wxOK | wxICON_WARNING, this);
+					return;
+				}
+				m_rumble_time = std::chrono::steady_clock::now();
+			});
+			box_sizer->Add(test, 0, wxALL, 5);
+		}
+#endif
 
 		sizer->Add(box_sizer, 1, wxALL|wxEXPAND, 5);
 	}
@@ -215,7 +279,7 @@ DefaultControllerSettings::DefaultControllerSettings(wxWindow* parent, const wxP
 	this->Bind(wxEVT_CLOSE_WINDOW, &DefaultControllerSettings::on_close, this);
 
 	m_timer = new wxTimer(this);
-	Bind(wxEVT_TIMER, &DefaultControllerSettings::on_timer, this);
+	Bind(wxEVT_TIMER, &DefaultControllerSettings::on_timer, this, m_timer->GetId());
 	m_timer->Start(100);
 }
 

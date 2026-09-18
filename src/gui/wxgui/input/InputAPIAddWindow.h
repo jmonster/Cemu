@@ -5,6 +5,9 @@
 #include <optional>
 #include <wx/dialog.h>
 #include <wx/panel.h>
+#ifdef HAVE_SWITCH2KIT
+#include <wx/timer.h>
+#endif
 
 #include "wxgui/helpers/wxCustomData.h"
 #include "input/api/Controller.h"
@@ -41,6 +44,9 @@ private:
 
 	void discard_thread_result();
 
+#ifdef HAVE_SWITCH2KIT
+	std::unique_ptr<wxTimer> m_switch2kit_timer;
+#endif
 	wxChoice* m_input_api;
 	wxComboBox* m_controller_list;
 	wxButton* m_ok_button;

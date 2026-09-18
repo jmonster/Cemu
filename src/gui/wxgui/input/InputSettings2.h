@@ -3,6 +3,10 @@
 #include <wx/dialog.h>
 #include <wx/notebook.h>
 #include <wx/timer.h>
+#include <memory>
+#ifdef HAVE_SWITCH2KIT
+#include "wxgui/input/Switch2KitDeviceChanges.h"
+#endif
 
 #include "input/api/InputAPI.h"
 
@@ -10,6 +14,7 @@
 
 struct ControllerPage;
 class ControllerBase;
+class wxStaticText;
 
 class InputSettings2 : public wxDialog
 {
@@ -22,6 +27,13 @@ private:
 
 	wxNotebook* m_notebook;
 	wxTimer* m_timer;
+#ifdef HAVE_SWITCH2KIT
+	wxTimer* m_switch2Timer;
+	wxStaticText* m_switch2Status;
+	std::shared_ptr<CemuSwitch2Kit::DeviceChanges> m_switch2DevicesChanged =
+		std::make_shared<CemuSwitch2Kit::DeviceChanges>();
+	void RefreshSwitch2Controllers();
+#endif
 
 	wxBitmap m_connected, m_disconnected, m_low_battery;
 

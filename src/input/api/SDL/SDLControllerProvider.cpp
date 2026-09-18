@@ -5,6 +5,77 @@
 
 #include <SDL3/SDL.h>
 #include <boost/functional/hash.hpp>
+#ifdef HAVE_SWITCH2KIT
+#include "CemuMotion.hpp"
+#endif
+struct SDLControllerProvider::MotionState
+{
+	WiiUMotionHandler handler;
+	MotionSample data;
+	MotionInfoTracking tracking;
+#ifdef HAVE_SWITCH2KIT
+	bool nativeMotion = false;
+	Switch2Kit::CemuMotion native;
+#endif
+};
+std::unordered_map<SDL_JoystickID, SDLControllerProvider::MotionState> SDLControllerProvider::s_motion_states;
+
+#ifdef HAVE_SWITCH2KIT
+#include "SDLHost.hpp"
+#include "input/api/SDL/Switch2KitSession.h"
+static Switch2KitSession<Switch2Kit::SDLHost>& NativeSession()
+{
+	static Switch2KitSession<Switch2Kit::SDLHost> session;
+	return session;
+}
+static Switch2Kit::SDLHost& nativeControllers()
+{
+	return NativeSession().GetHost();
+}
+int SDLControllerProvider::FindSwitch2Controllers() { return NativeSession().Discover(); }
+int SDLControllerProvider::DisconnectSwitch2Controllers() { return NativeSession().Stop(); }
+std::string SDLControllerProvider::Switch2ControllerStatus()
+{
+	const auto state = nativeControllers().snapshot();
+	if (!NativeSession().IsEnabled()) return "Select Find, then hold the controller Sync button.";
+	if (state.bluetooth == S2K_BT_UNAUTHORIZED) return "Allow Cemu Bluetooth access in System Settings.";
+	if (state.bluetooth == S2K_BT_OFF) return "Turn on Bluetooth in System Settings.";
+	if (state.bluetooth == S2K_BT_UNSUPPORTED) return "Bluetooth is unavailable on this Mac.";
+	return std::to_string(state.count) + " connected; " +
+		(state.discovery == S2K_DISCOVERY_SCANNING ? "searching" : "discovery idle");
+}
+SDL_JoystickID SDLControllerProvider::FindSwitch2Device(std::string_view key)
+{
+	return nativeControllers().instance(std::string(key));
+}
+int SDLControllerProvider::LoadSwitch2MotionProfile(const std::string& path, const std::string& key)
+{
+	return nativeControllers().loadMotionProfile(path, key);
+}
+void SDLControllerProvider::RemoveSwitch2MotionProfile(const std::string& key)
+{
+	nativeControllers().removeMotionProfile(key);
+}
+std::string SDLControllerProvider::Switch2MotionStatus(const std::string& key)
+{
+	const auto id = nativeControllers().instance(key);
+	if (!id) return "Controller disconnected; selection retained for reconnect";
+	const auto state = Switch2Kit::SDL3Adapter::motionState(id);
+	auto status = state.status;
+	if (status == Switch2Kit::SDL3MotionStatus::Active && !AvailableSwitch2Motion(id))
+		status = Switch2Kit::SDL3MotionStatus::Waiting;
+	return Switch2Kit::SDL3Adapter::motionStatusText(status);
+}
+std::optional<MotionSample> SDLControllerProvider::AvailableSwitch2Motion(SDL_JoystickID id)
+{
+	const auto state = Switch2Kit::SDL3Adapter::motionState(id);
+	std::scoped_lock lock(s_mutex);
+	const auto it = s_motion_states.find(id);
+	if (it == s_motion_states.end() || !it->second.nativeMotion) return {};
+	it->second.native.synchronize(state);
+	return it->second.native.availableSample();
+}
+#endif
 
 struct SDL_JoystickGUIDHash
 {
@@ -68,6 +139,15 @@ std::vector<std::shared_ptr<ControllerBase>> SDLControllerProvider::get_controll
 	{
 		for (size_t i = 0; i < gamepad_count; ++i)
 		{
+#ifdef HAVE_SWITCH2KIT
+			const auto native_key = nativeControllers().identity(gamepad_ids[i]);
+			if (!native_key.empty())
+			{
+				const char* name = SDL_GetGamepadNameForID(gamepad_ids[i]);
+				result.emplace_back(std::make_shared<SDLController>(native_key, name ? name : "Switch2Kit controller", SDL_GetGamepadProductForID(gamepad_ids[i])));
+				continue;
+			}
+#endif
 			const auto guid = SDL_GetGamepadGUIDForID(gamepad_ids[i]);
 			const auto it = guid_counter.try_emplace(guid, 0);
 			if (const char* name = SDL_GetGamepadNameForID(gamepad_ids[i]))
@@ -108,8 +188,20 @@ int SDLControllerProvider::get_index(size_t guid_index, const SDL_GUID& guid) co
 
 MotionSample SDLControllerProvider::motion_sample(SDL_JoystickID diid)
 {
+#ifdef HAVE_SWITCH2KIT
+	// Query SDL before taking s_mutex: callbacks/enumeration use that lock order.
+	const auto native = Switch2Kit::SDL3Adapter::motionState(diid);
+	std::scoped_lock lock(s_mutex);
+	auto it = s_motion_states.find(diid);
+	if (it != s_motion_states.end() && it->second.nativeMotion)
+	{
+		it->second.native.synchronize(native); // Also resets during event-free inactivity.
+		return it->second.native.snapshot();
+	}
+#else
 	std::shared_lock lock(s_mutex);
 	auto it = s_motion_states.find(diid);
+#endif
 	return (it != s_motion_states.end()) ? it->second.data : MotionSample{};
 }
 
@@ -141,12 +233,19 @@ void SDLControllerProvider::InitSDL()
 
 void SDLControllerProvider::ShutdownSDL()
 {
+#ifdef HAVE_SWITCH2KIT
+	NativeSession().Shutdown();
+	{ std::scoped_lock lock(s_mutex); s_motion_states.clear(); }
+#endif
 	SDL_QuitSubSystem(SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC);
 }
 
 #if BOOST_OS_MACOS
 void SDLControllerProvider::PumpSDLEvents()
 {
+#ifdef HAVE_SWITCH2KIT
+	NativeSession().Pump();
+#endif
 	SDL_Event event;
 	while (SDL_PollEvent(&event))
 		HandleSDLEvent(event);
@@ -177,15 +276,17 @@ void SDLControllerProvider::HandleSDLEvent(SDL_Event& event)
 		}
 		case SDL_EVENT_GAMEPAD_ADDED: /**< A new Game controller has been inserted into the system */
 		{
-			std::scoped_lock _l(s_mutex);
+			// Reconnect/UI callbacks can query motion; never hold s_mutex here.
 			InputManager::instance().on_device_changed();
 			break;
 		}
 		case SDL_EVENT_GAMEPAD_REMOVED: /**< An opened Game controller has been removed */
 		{
-			std::scoped_lock _l(s_mutex);
+			{
+				std::scoped_lock lock(s_mutex);
+				s_motion_states.erase(event.gdevice.which);
+			}
 			InputManager::instance().on_device_changed();
-			s_motion_states.erase(event.gdevice.which);
 			break;
 		}
 		case SDL_EVENT_GAMEPAD_REMAPPED: 			/**< The controller mapping was updated */
@@ -207,9 +308,27 @@ void SDLControllerProvider::HandleSDLEvent(SDL_Event& event)
 		case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:		/**< Game controller sensor was updated */
 		{
 			SDL_JoystickID id = event.gsensor.which;
+#ifdef HAVE_SWITCH2KIT
+			// Old queued events from a detached generation must not create state.
+			Switch2Kit::SDL3MotionState native;
+			{
+				TempState joystickLock(SDL_LockJoysticks, SDL_UnlockJoysticks);
+				auto* gamepad = SDL_GetGamepadFromID(id);
+				if (!gamepad || !SDL_GamepadConnected(gamepad)) break;
+				native = Switch2Kit::SDL3Adapter::motionStateAt(id, event.gsensor.sensor_timestamp);
+			}
+#endif
 			uint64_t ts = event.gsensor.timestamp;
 			std::scoped_lock _l(s_mutex);
 			auto& state = s_motion_states[id];
+#ifdef HAVE_SWITCH2KIT
+			if (native.owned || state.nativeMotion)
+			{
+				state.nativeMotion = true;
+				state.native.consume(native, event.gsensor);
+				break;
+			}
+#endif
 			auto& tracking = state.tracking;
 
 			if (event.gsensor.sensor == SDL_SENSOR_ACCEL)

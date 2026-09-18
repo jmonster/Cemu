@@ -9,77 +9,7 @@ namespace pugi
 	class xml_node;
 }
 
-enum Buttons2 : uint64
-{
-	// General
-	kButton0,
-	kButton1,
-	kButton2,
-	kButton3,
-	kButton4,
-	kButton5,
-	kButton6,
-	kButton7,
-	kButton8,
-	kButton9,
-	kButton10,
-	kButton11,
-	kButton12,
-	kButton13,
-	kButton14,
-	kButton15,
-	kButton16,
-	kButton17,
-	kButton18,
-	kButton19,
-	kButton20,
-	kButton21,
-	kButton22,
-	kButton23,
-	kButton24,
-	kButton25,
-	kButton26,
-	kButton27,
-	kButton28,
-	kButton29,
-	kButton30,
-	kButton31,
-
-	// Trigger
-	kButtonZL,
-	kButtonZR,
-
-	// DPAD
-	kButtonUp,
-	kButtonDown,
-	kButtonLeft,
-	kButtonRight,
-
-	// positive values
-	kAxisXP,
-	kAxisYP,
-
-	kRotationXP,
-	kRotationYP,
-
-	kTriggerXP,
-	kTriggerYP,
-
-	// negative values
-	kAxisXN,
-	kAxisYN,
-
-	kRotationXN,
-	kRotationYN,
-
-	kTriggerXN,
-	kTriggerYN,
-	
-	kButtonMAX,
-
-	kButtonNoneAxisMAX = kButtonRight,
-	kButtonAxisStart = kAxisXP,
-};
+#include "input/api/ControllerButtons.h"
 
 class ControllerBase
 {
@@ -112,9 +42,16 @@ public:
 	float get_axis_value(uint64 button) const;
 	virtual bool has_axis() const { return true; }
 
-	bool use_motion() { return has_motion() && m_settings.motion; }
+	bool use_motion() { return has_motion() && get_settings().motion; }
 	virtual bool has_motion() { return false; }
 	virtual MotionSample get_motion_sample() { return {}; }
+	// Availability is separate from capability/settings. A missing native stream
+	// must not be passed to VPAD/KPAD as an invented zero-valued measurement.
+	virtual std::optional<MotionSample> get_available_motion_sample()
+	{
+		if (use_motion()) return get_motion_sample();
+		return {};
+	}
 
 	virtual bool has_position() { return false; }
 	virtual glm::vec2 get_position() { return {}; }
@@ -156,6 +93,7 @@ public:
 	bool operator!=(const ControllerBase& c) const { return !(*this == c); }
 
 protected:
+	virtual void motion_settings_changed() {}
 	std::string m_uuid;
 	std::string m_display_name;
 
