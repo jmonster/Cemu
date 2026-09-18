@@ -38,7 +38,10 @@ jobs:
           set -o pipefail
           bash scripts/build-switch2kit.sh 2>&1 | tee linux-build.log
       - name: Execute controller policies
-        run: python3 tests/switch2kit/run.py --sanitize
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tests/switch2kit/run.py --sanitize 2>&1 | tee linux-policies.log
       - name: Relocate, resolve native dependencies and launch the installed binary
         shell: bash
         run: |
