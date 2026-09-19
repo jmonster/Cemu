@@ -1,6 +1,6 @@
 #pragma once
 
-// Start/Stop/Pump are called on Cemu's macOS main thread. The SDK host serializes
+// Start/Stop/Pump are called on Cemu's GUI main thread on every native platform. The SDK host serializes
 // identity, profile and status access from controller/configuration threads.
 // Keeping the state here also prevents a failed first start from enabling polling.
 template <typename Host>

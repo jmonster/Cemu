@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,7 +55,13 @@ def run():
             command += ['-fsanitize=address,undefined', '-fno-omit-frame-pointer']
         subprocess.run(command, check=True, timeout=120)
         subprocess.run([str(binary)], check=True, timeout=30)
+    host_file = [sys.executable, str(ROOT / 'tests/switch2kit/test_host_file.py'), '--sdk', str(sdk)]
+    if args.sanitize:
+        host_file.append('--sanitize')
+    subprocess.run(host_file, check=True)
     subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_wiring.py')], check=True)
+    subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_desktop_lifecycle.py'),
+                    '--sdk', str(sdk)], check=True)
 
 if __name__ == '__main__':
     run()

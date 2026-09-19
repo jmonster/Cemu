@@ -87,7 +87,7 @@ struct SDL_JoystickGUIDHash
 
 SDLControllerProvider::SDLControllerProvider()
 {
-#if !BOOST_OS_MACOS
+#if !BOOST_OS_MACOS && !defined(HAVE_SWITCH2KIT)
 	std::scoped_lock _l(s_mutex);
 	if (s_initCount.fetch_add(1) == 0)
 	{
@@ -99,7 +99,7 @@ SDLControllerProvider::SDLControllerProvider()
 
 SDLControllerProvider::~SDLControllerProvider()
 {
-#if !BOOST_OS_MACOS
+#if !BOOST_OS_MACOS && !defined(HAVE_SWITCH2KIT)
 	bool shutdownSDL = false;
 	{
 		std::scoped_lock _l(s_mutex);
@@ -240,7 +240,7 @@ void SDLControllerProvider::ShutdownSDL()
 	SDL_QuitSubSystem(SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC);
 }
 
-#if BOOST_OS_MACOS
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 void SDLControllerProvider::PumpSDLEvents()
 {
 #ifdef HAVE_SWITCH2KIT
