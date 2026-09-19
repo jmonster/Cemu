@@ -109,15 +109,16 @@ policy/start errors remain visible through successful polling and status
 refreshes. Find retries starting support, not saving settings.
 
 The SDK submodule is pinned to
-`1e6eac15fd4d4c93f15244eb66d79021c92d29fc`, which combines the shared `SDLHost`
+`d9129e3876f0d68aa7d13395dcff8e2abb38d609`, which combines the shared `SDLHost`
 automatic-discovery and policy-only start methods from
 [Switch2Kit PR #74](https://github.com/jmonster/Switch2Kit/pull/74) with the merged
 [desktop transport and runtime fixes](https://github.com/jmonster/Switch2Kit/pull/75).
 Do not substitute the older automatic-connection pin, which lacks those desktop
 fixes, or a library missing `s2k_set_automatic_discovery`. Source-integration
-checks verify the matching pin. The SDK companion and this combined application's
-own current-revision native checks remain merge gates; earlier separate branch
-results do not qualify this combination.
+checks verify the matching pin. Both SDK changes are merged; this permanent
+commit has the same source tree as the previously reviewed SDK revision. This
+application's own current-revision native checks remain required; earlier
+separate branch results do not qualify the combined application.
 
 ## Controller differences and motion
 
