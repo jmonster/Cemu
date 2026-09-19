@@ -1,64 +1,62 @@
-# **Cemu - Wii U emulator**
+# Cemu - Wii U emulator
 
-**This fork supports the Nintendo Switch Online GameCube controller and Nintendo Switch 2 Pro Controller on macOS through [Switch2Kit](https://github.com/jmonster/Switch2Kit).**
+**This fork embeds [Switch2Kit](https://github.com/jmonster/Switch2Kit) for NSO GameCube and Nintendo Switch 2 Pro controllers on macOS 15+, with experimental Linux x86-64 and Windows x64 builds.**
 
-[![Native Switch2Kit builds](https://github.com/jmonster/Cemu/actions/workflows/native-switch2kit.yml/badge.svg)](https://github.com/jmonster/Cemu/actions/workflows/native-switch2kit.yml)
+Use this controller-enabled Cemu directly: connect the controller, choose a player slot and emulated controller, and play. No separate dashboard, network bridge, SDL override or virtual-controller driver is needed. Joy-Con 2 halves remain available as separate, complementary input sources.
 
-Controller support is built into Cemu. There is no separate Switch2Kit app or controller driver to install, and GameCube/Pro controller setup includes recommended mappings and rumble.
+## Quick start
 
-## Quick start (macOS 15+)
+Sign in to GitHub and select a successful application run for `feature/switch2kit-auto-connect` while this PR is unmerged. Choose the named **application** artifact below and check its native build/launch jobs, not a source or diagnostics archive. These are expiring development builds, not published production releases. Use [Build from source](#build-from-source-alternative) when a matching application artifact is unavailable. Ordinary upstream downloads do not include this integration.
 
-### Get a controller-enabled build
+### macOS
 
-1. Sign in to GitHub, open this fork's [Native Switch2Kit builds](https://github.com/jmonster/Cemu/actions/workflows/native-switch2kit.yml), and select a successful run with a green check. Use **Native Switch2Kit**, not the ordinary **Build check** workflow.
-2. Under **Artifacts**, download **Cemu-Switch2Kit-arm64** for an Apple Silicon Mac or **Cemu-Switch2Kit-x86_64** for an Intel Mac. Choose the application artifact, not a diagnostics artifact.
-3. Extract the downloaded ZIP, open the **build-switch2kit** folder, and extract **integration-app.zip**. Move **Cemu_release.app** to Applications and open it. Reopen this same app for later sessions.
+Use macOS 15 or newer and [Native Switch2Kit builds](https://github.com/jmonster/Cemu/actions/workflows/native-switch2kit.yml). Download **Cemu-Switch2Kit-arm64** for Apple Silicon or **Cemu-Switch2Kit-x86_64** for Intel. Extract the outer ZIP, then `build-switch2kit/integration-app.zip` inside it. Move `Cemu_release.app` to Applications and open it. Enable Bluetooth and allow Cemu's Bluetooth request; denied access is managed under **System Settings > Privacy & Security > Bluetooth**.
 
-Downloads currently come from GitHub Actions, not a published release. Application artifacts expire after 14 days; when no application download is available, use [Build from source](#build-from-source-alternative) below. Ordinary upstream Cemu downloads do not include this Switch2Kit integration.
+These apps are ad-hoc signed, not notarized. For a source you trust, use Apple's [per-app Open Anyway procedure](https://support.apple.com/en-us/102445); do not disable Gatekeeper globally.
 
-These are development builds, not notarized releases. For an unverified-developer warning, use Apple's [per-app Open Anyway instructions](https://support.apple.com/en-us/102445) only when you trust the download's source. Do not disable Gatekeeper globally.
+### Linux
+
+Use Ubuntu 24.04 x86-64 with a desktop session, graphics drivers, normal system-bus permissions, a powered Bluetooth LE adapter and the BlueZ service. See the [Linux prerequisites](docs/Switch2Kit.md#linux). From [Switch2Kit Linux application builds](https://github.com/jmonster/Cemu/actions/workflows/switch2kit-linux.yml), download **Cemu-Switch2Kit-linux-x86_64**. Extract the outer artifact ZIP and then:
+
+```sh
+tar -xzf Cemu-Switch2Kit-linux-x86_64.tar.gz
+./Cemu-Switch2Kit-linux-x86_64/bin/Cemu_release
+```
+
+Keep `bin`, `lib` and `share` together. The Swift runtime is packaged; no Swift installation or loader-path override is needed for a correctly staged application. Compatible system libraries and drivers remain required. This is not an AppImage or universal Linux binary.
+
+### Windows
+
+Use Windows 11 x64 for these experimental instructions, with a Bluetooth LE driver, graphics drivers and the Microsoft Visual C++ x64 runtime. Native CI uses Windows Server runners, not physical Windows 11 controllers. From [Switch2Kit Windows application builds](https://github.com/jmonster/Cemu/actions/workflows/switch2kit-windows.yml), download **Cemu-Switch2Kit-windows-x86_64**. Extract the outer artifact ZIP and then `Cemu-Switch2Kit-windows-x86_64.zip`. Open `Cemu-Switch2Kit-windows-x86_64/Cemu_release.exe`.
+
+Keep its DLLs, `resources`, `gameProfiles` and `Switch2KitNotices` beside it. The selected Swift runtime is included; launching does not require the Swift compiler or its PATH. Run normally, not as administrator, and do not disable operating-system security to bypass errors. See the [Windows source fallback](docs/Switch2Kit.md#windows).
 
 ### Connect and play
 
-1. Turn on your Mac's Bluetooth and close other apps managing the controller, including the Switch2Kit dashboard or Dolphin. In Cemu, open **Options > Input settings**, click **Find Switch 2 Controllers**, allow Bluetooth access, and hold the controller's **Sync** button until its player lights sweep. With automatic connection off, the search lasts 60 seconds; click Find again to retry.
-2. On the desired controller tab, select your **GameCube** or **Pro Controller 2** in the dropdown beside **Emulated controller**. Cemu applies the button and stick mappings automatically. An empty first slot becomes a **Wii U GamePad**; other empty slots become **Wii U Pro Controllers**. Use the emulated controller type your game supports.
-3. Check that the input display responds to button presses, releases, and stick movement. Open the physical controller's **Settings** to adjust **Rumble** and click **Test rumble**. Close Input settings and open your Wii U game.
+1. Close competing controller apps/consoles. In Cemu, open **Options > Input settings**, click **Find Switch 2 Controllers**, and hold the controller's **Sync** button until its player lights sweep. Allow legitimate Bluetooth access prompts. With automatic connection off, the search lasts 60 seconds; repeat Find to retry.
+2. Select the desired controller tab (for example, **Controller 1**). In the physical-controller dropdown beside **Emulated controller**, select the connected **GameCube** or **Pro Controller 2**. Cemu applies recommended mappings. An empty first slot becomes a Wii U GamePad, other empty slots become Wii U Pro Controllers; existing GamePad/Pro/Classic types are retained. Choose a type the game accepts.
+3. Verify buttons, sticks and triggers in Input settings. Open the physical controller's **Settings** to adjust **Rumble** and use **Test rumble**, then open the game. NSO GameCube trigger travel and full clicks remain independent inputs; Pro triggers are digital. GameCube sticks have no click buttons, so games needing those actions require additional bindings.
 
-Cemu saves assignments and mappings. To reconnect on later launches or after long pauses without reopening Input settings, enable **Automatically connect Switch 2 controllers** in Input settings. This is off by default and uses Bluetooth radio resources. Unchecking it stops automatic discovery without disconnecting ready controllers. With it off, use **Find Switch 2 Controllers** for a bounded search.
+Saved assignments follow the physical controller rather than its discovery order. To connect on later launches and after long pauses without reopening Input settings, enable **Automatically connect Switch 2 controllers**. It is off by default and uses Bluetooth radio resources. Unchecking it stops automatic discovery without disconnecting ready controllers. With it off, use **Find** for a bounded search.
 
-**Disconnect Switch 2 Controllers** stops support for the current run without erasing profiles or the saved automatic-connection choice. Use **Find** or turn the automatic option off and on to resume deliberately; the saved choice applies again on the next launch. Replacing a populated slot asks for confirmation and saves a backup; reconnecting never reapplies presets or resets custom mappings. See [Automatic connection](docs/Switch2Kit.md#automatic-connection) for consent, pairing and troubleshooting details.
+**Disconnect Switch 2 Controllers** stops support for the current run without erasing profiles or the saved automatic-connection choice. Use **Find**, or turn the automatic option off and on, to resume deliberately; saved consent applies again on the next launch. Replacing a populated slot asks first and creates a **Before Switch2Kit-…** backup; reconnecting does not overwrite custom mappings. See [Automatic connection](docs/Switch2Kit.md#automatic-connection) for consent and troubleshooting details.
 
-The NSO GameCube controller has no stick-click buttons, so bind those actions to spare buttons or a keyboard when a game needs them. A controller does not replace the Wii U touchscreen. Motion requires a measured, device-matching `.s2kmotion` profile and **Use motion** in the physical controller's Settings; it is not automatically calibrated and is not required for ordinary button/stick input. See the [full controller guide](docs/Switch2Kit.md) for these details and for adding both Joy-Con 2 halves through **+ > SDLController**.
-
-**No Find button?** Open the controller-enabled app above, not an upstream or backend-disabled build. **No controller?** Check Bluetooth access for Cemu in **System Settings > Privacy & Security > Bluetooth**, close competing controller apps, and retry Find while holding Sync.
+For Joy-Con 2, discover each half with Find/Sync, choose the emulated controller type, and add both via **+ > SDLController** to the same player slot. These are separate complementary sources, not a system-wide paired virtual controller. Motion requires a measured, device-matching `.s2kmotion` profile selected in physical-controller Settings and **Use motion** enabled. Never use synthetic test profiles for gameplay. See [controller differences and motion](docs/Switch2Kit.md#controller-differences-and-motion).
 
 ### Build from source (alternative)
 
-<details>
-<summary>Build and launch the controller-enabled app on your Mac</summary>
-
-Use macOS 15+, [Xcode](https://developer.apple.com/xcode/) 26+ with Swift 6.2+, and [Homebrew](https://brew.sh/). Open Xcode once to finish setup and select it under **Xcode > Settings > Locations > Command Line Tools**. On Apple Silicon, use a native Terminal and native Homebrew, not Rosetta.
-
-Run these commands in Terminal:
+Follow the [platform build guide](docs/Switch2Kit.md#build-from-source). Start from this implementation branch while the PR is unmerged:
 
 ```sh
-brew install cmake ninja nasm automake libtool molten-vk
-git clone --recurse-submodules https://github.com/jmonster/Cemu.git cemu-switch2kit
+git clone --branch feature/switch2kit-auto-connect --recurse-submodules https://github.com/jmonster/Cemu.git cemu-switch2kit
 cd cemu-switch2kit
-bash scripts/build-switch2kit.sh --run
 ```
 
-The helper builds this fork and its pinned dependencies, enables Switch2Kit, and opens **bin/Cemu_release.app**. No separate SDK checkout or patching is needed. Once it opens, follow [Connect and play](#connect-and-play).
-
-For later launches, reopen that app. To update the source build, quit Cemu, run `git pull --ff-only` from this checkout, and rerun `bash scripts/build-switch2kit.sh --run`. The helper updates the pinned submodules without replacing your settings. The ordinary upstream build instructions below do not enable Switch2Kit by default.
-
-</details>
-
-See the [full Switch2Kit controller guide](docs/Switch2Kit.md) for custom mappings, profile backups, multiplayer, motion calibration, and testing limits. Automated build/launch checks do not establish physical-controller or gameplay acceptance. Switch2Kit support in this fork is macOS-only; the SDK's experimental Linux work is separate.
+The helpers enable Switch2Kit and use the pinned submodule; do not apply the SDK's separate upstream patches. The ordinary upstream instructions below do not enable it by default. Linux/Windows support remains experimental, and native build/launch tests do not establish physical-controller or gameplay acceptance.
 
 ## Upstream Cemu information
 
-The information below describes Cemu generally, including builds without this fork's Switch2Kit feature. Controller-enabled builds have the macOS 15+ requirements above.
+The information below describes Cemu generally, including builds without this fork's Switch2Kit feature. Controller-enabled builds use the platform requirements above.
 
 [![Upstream Build Process](https://github.com/cemu-project/Cemu/actions/workflows/build.yml/badge.svg)](https://github.com/cemu-project/Cemu/actions/workflows/build.yml)
 [![Discord](https://img.shields.io/discord/286429969104764928?label=Cemu&logo=discord&logoColor=FFFFFF)](https://discord.gg/5psYsup)
@@ -84,7 +82,7 @@ Cemu is currently only available for 64-bit Windows, Linux & macOS devices.
 
 ## Upstream downloads (without this integration)
 
-For this fork's Switch2Kit support, use [Get a controller-enabled build](#get-a-controller-enabled-build) above instead.
+For this fork's Switch2Kit support, use [Quick start](#quick-start) above instead.
 
 You can download the latest upstream Cemu releases for Windows, Linux and Mac from the [upstream GitHub Releases](https://github.com/cemu-project/Cemu/releases/). For Linux you can also find upstream Cemu on [Flathub](https://flathub.org/apps/info.cemu.Cemu).
 
@@ -96,7 +94,7 @@ Pre-2.0 releases can be found on Cemu's [changelog page](https://cemu.info/chang
 
 ## Build Instructions
 
-For a controller-enabled macOS build, use [Build from source](#build-from-source-alternative) above. For ordinary upstream-style builds on Windows, Linux or macOS, view [BUILD.md](/BUILD.md).
+For a controller-enabled desktop build, use [Build from source](#build-from-source-alternative) above. For ordinary upstream-style builds on Windows, Linux or macOS, view [BUILD.md](/BUILD.md).
 
 ## Issues
 

@@ -2,9 +2,10 @@
 
 #include <utility>
 
-// Lifecycle, preference and polling methods belong to Cemu's macOS main thread.
-// The SDK host serializes identity/profile access from configuration threads.
-// Pump never loads settings, changes discovery policy, or starts support.
+// Lifecycle, preference and polling methods belong to Cemu's GUI main thread
+// on every native platform. The SDK host serializes identity/profile access
+// from configuration threads. Pump never loads settings, changes discovery
+// policy, or starts support.
 template <typename Host>
 class Switch2KitSession
 {

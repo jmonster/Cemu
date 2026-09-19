@@ -338,12 +338,12 @@ bool CemuApp::OnInit()
 	UnitTests();
 #endif
 
-#if BOOST_OS_MACOS
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 	SDLControllerProvider::InitSDL();
 #endif
 	CemuCommonInit();
 
-#if BOOST_OS_MACOS
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 	m_sdlEventPumpTimer = new wxTimer(this);
 	Bind(wxEVT_TIMER, &CemuApp::OnSDLEventPumpTimer, this);
 	m_sdlEventPumpTimer->Start(5, wxTIMER_CONTINUOUS);
@@ -390,7 +390,7 @@ bool CemuApp::OnInit()
 
 int CemuApp::OnExit()
 {
-#if BOOST_OS_MACOS
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 	if (m_sdlEventPumpTimer)
 	{
 		m_sdlEventPumpTimer->Stop();
@@ -405,7 +405,7 @@ int CemuApp::OnExit()
 	int retValue = 0;
 	if (auto r = CafeSystem::GetForegroundTitleReturnStatus(); (LaunchSettings::GetLoadFile() || LaunchSettings::GetLoadTitleID()) && r)
 		retValue = *r;
-#if BOOST_OS_MACOS
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 	SDLControllerProvider::ShutdownSDL();
 #endif
 	// handle restart if requested
@@ -434,11 +434,12 @@ int CemuApp::OnExit()
 #endif
 }
 
-#if BOOST_OS_MACOS
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 void CemuApp::OnSDLEventPumpTimer(wxTimerEvent& event)
 {
-	// this callback is only used on macOS where SDL event functions need to be called on the main thread
-	// on other platforms SDLControllerProvider creates a separate thread for SDL event polling
+	// macOS requires main-thread SDL events. Native Switch2Kit also uses this
+	// owner on other platforms so Find, Disconnect, Pump and shutdown serialize.
+	// Backend-disabled non-macOS builds retain SDLControllerProvider's worker.
 	SDLControllerProvider::PumpSDLEvents();
 }
 #endif

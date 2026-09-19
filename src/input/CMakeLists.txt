@@ -110,5 +110,11 @@ if (ENABLE_BLUEZ)
 endif ()
 
 if(ENABLE_SWITCH2KIT)
+    # This static adapter is linked into Cemu, not into the Swift DLL. Match
+    # CemuInput's CRT in every configuration; leave the DLL's runtime untouched.
+    if(MSVC)
+        get_target_property(_cemu_input_crt CemuInput MSVC_RUNTIME_LIBRARY)
+        set_property(TARGET Switch2KitSDL3 PROPERTY MSVC_RUNTIME_LIBRARY "${_cemu_input_crt}")
+    endif()
     target_link_libraries(CemuInput PRIVATE Switch2Kit::SDL3)
 endif()

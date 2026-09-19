@@ -9,8 +9,11 @@ def text(path): return (ROOT / path).read_text()
 class Wiring(unittest.TestCase):
     def test_opt_in_bundle_and_target(self):
         cmake = text('CMakeLists.txt')
-        self.assertIn('option(ENABLE_SWITCH2KIT "Use in-process Switch2Kit controllers on macOS 15+" OFF)', cmake)
-        self.assertIn('NOT APPLE OR NOT ENABLE_SDL OR NOT MACOS_BUNDLE', cmake)
+        # Preserve the opt-in contract without prescribing the help text.
+        self.assertRegex(cmake, r'option\s*\(\s*ENABLE_SWITCH2KIT\s+"(?:[^"\\]|\\.)*"\s+OFF\s*\)')
+        self.assertIn('if(NOT ENABLE_SDL)', cmake)
+        self.assertIn('if(NOT (APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))', cmake)
+        self.assertIn('if(APPLE AND (NOT MACOS_BUNDLE OR CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 15.0))', cmake)
         self.assertIn('CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 15.0', cmake)
         self.assertIn('${CMAKE_CURRENT_SOURCE_DIR}/dependencies/Switch2Kit', cmake)
         self.assertIn('SWITCH2KIT_BLUETOOTH_USAGE', text('src/resource/MacOSXBundleInfo.plist.in'))

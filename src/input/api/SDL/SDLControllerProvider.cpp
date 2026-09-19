@@ -66,9 +66,9 @@ std::string SDLControllerProvider::Switch2ControllerStatus()
 	if (!session.IsEnabled())
 		return "Switch 2 controller support is stopped. Use Find to resume, then hold Sync for initial pairing.";
 	const auto state = nativeControllers().snapshot();
-	if (state.bluetooth == S2K_BT_UNAUTHORIZED) return "Allow Cemu Bluetooth access in System Settings.";
-	if (state.bluetooth == S2K_BT_OFF) return "Turn on Bluetooth in System Settings.";
-	if (state.bluetooth == S2K_BT_UNSUPPORTED) return "Bluetooth is unavailable on this Mac.";
+	if (state.bluetooth == S2K_BT_UNAUTHORIZED) return "Allow Cemu Bluetooth access in your system settings.";
+	if (state.bluetooth == S2K_BT_OFF) return "Turn on Bluetooth in your system settings.";
+	if (state.bluetooth == S2K_BT_UNSUPPORTED) return "Bluetooth is unavailable on this system.";
 	const auto connected = std::to_string(state.count) + " connected; ";
 	if (session.AutoConnect())
 		return connected + (state.discovery == S2K_DISCOVERY_SCANNING ?
@@ -120,7 +120,7 @@ struct SDL_JoystickGUIDHash
 
 SDLControllerProvider::SDLControllerProvider()
 {
-#if !BOOST_OS_MACOS
+#if !BOOST_OS_MACOS && !defined(HAVE_SWITCH2KIT)
 	std::scoped_lock _l(s_mutex);
 	if (s_initCount.fetch_add(1) == 0)
 	{
@@ -132,7 +132,7 @@ SDLControllerProvider::SDLControllerProvider()
 
 SDLControllerProvider::~SDLControllerProvider()
 {
-#if !BOOST_OS_MACOS
+#if !BOOST_OS_MACOS && !defined(HAVE_SWITCH2KIT)
 	bool shutdownSDL = false;
 	{
 		std::scoped_lock _l(s_mutex);
@@ -279,7 +279,7 @@ void SDLControllerProvider::ShutdownSDL()
 	SDL_QuitSubSystem(SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC);
 }
 
-#if BOOST_OS_MACOS
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 void SDLControllerProvider::PumpSDLEvents()
 {
 #ifdef HAVE_SWITCH2KIT

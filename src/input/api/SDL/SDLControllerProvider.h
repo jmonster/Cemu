@@ -36,8 +36,8 @@ public:
 	static std::optional<MotionSample> AvailableSwitch2Motion(SDL_JoystickID id);
 #endif
 
-	// exposed for manual event handling on macOS
-#if BOOST_OS_MACOS
+	// Main-loop ownership on macOS and whenever native Switch2Kit is enabled.
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 	static void InitSDL();
 	static void ShutdownSDL();
 	static void PumpSDLEvents();
@@ -46,7 +46,7 @@ public:
 private:
 	void event_thread();
 	static void HandleSDLEvent(union SDL_Event& event);
-#if !BOOST_OS_MACOS
+#if !BOOST_OS_MACOS && !defined(HAVE_SWITCH2KIT)
 	static void InitSDL();
 	static void ShutdownSDL();
 #endif
