@@ -27,6 +27,9 @@ jobs:
         run: |
           & ./scripts/build-switch2kit.ps1 2>&1 | Tee-Object windows-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # The build helper initialized MSVC in this PowerShell process.
+          python tests/switch2kit/test_host_file.py 2>&1 | Tee-Object windows-host-file.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Stage and launch the application away from the build tree
         shell: pwsh
         run: |
