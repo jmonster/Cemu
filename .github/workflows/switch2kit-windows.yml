@@ -40,11 +40,16 @@ jobs:
           robocopy 'bin' $stage /E /NFL /NDL /NJH /NJS
           if ($LASTEXITCODE -ge 8) { throw 'Application staging failed.' }
           $global:LASTEXITCODE = 0
-          New-Item -ItemType Directory -Path "$stage/user" -Force | Out-Null
+          # Never distribute a developer/test profile. The supervisor seeds only
+          # its private extracted copy, after the distributable archive is made.
+          foreach ($profile in @('User', 'user', 'portable', 'portable.txt', 'settings.xml')) {
+            if (Test-Path (Join-Path $stage $profile)) { throw "Unexpected profile in application staging: $profile" }
+          }
           Move-Item build-switch2kit-windows "$env:RUNNER_TEMP/disabled-build-tree"
-          & ./tests/switch2kit/windows-launch.ps1 -Executable "$stage/Cemu_release.exe"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Compress-Archive -Path $stage -DestinationPath 'Cemu-Switch2Kit-windows-x86_64.zip'
+          Move-Item $stage "$env:RUNNER_TEMP/unavailable-staged-application"
+          & ./tests/switch2kit/windows-launch.ps1 -Archive 'Cemu-Switch2Kit-windows-x86_64.zip' -ForbiddenRoot "$PWD"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Controller-enabled development application
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

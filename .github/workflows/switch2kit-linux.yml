@@ -23,7 +23,7 @@ jobs:
       - name: Install native dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends build-essential cmake ninja-build python3 pkg-config curl zip unzip tar zstd nasm autoconf automake libtool libtool-bin gettext freeglut3-dev libgcrypt20-dev libglm-dev libgtk-3-dev libpulse-dev libsecret-1-dev libsystemd-dev libudev-dev libbluetooth-dev libgl1-mesa-dev libglu1-mesa-dev libx11-xcb-dev libwayland-dev wayland-protocols extra-cmake-modules dbus xvfb xauth
+          apt-get install -y --no-install-recommends build-essential cmake ninja-build python3 pkg-config curl zip unzip tar zstd nasm autoconf automake libtool libtool-bin gettext freeglut3-dev libgcrypt20-dev libglm-dev libgtk-3-dev libpulse-dev libsecret-1-dev libsystemd-dev libudev-dev libbluetooth-dev libgl1-mesa-dev libglu1-mesa-dev libx11-xcb-dev libwayland-dev wayland-protocols extra-cmake-modules dbus xvfb xauth openbox wmctrl x11-utils
           git config --global --add safe.directory "$PWD"
           mkdir -p "$HOME/.cache/vcpkg/archives"
           echo "VCPKG_BINARY_SOURCES=clear;files,$HOME/.cache/vcpkg/archives,readwrite" >> "$GITHUB_ENV"
@@ -53,8 +53,12 @@ jobs:
           ldd "$app/bin/Cemu_release" | tee linux-dependencies.log
           ! grep -q 'not found' linux-dependencies.log
           grep -F "$app" linux-dependencies.log | grep libSwitch2KitC
-          xvfb-run -a "$app/bin/Cemu_release" --version
           tar -C "$RUNNER_TEMP" -czf Cemu-Switch2Kit-linux-x86_64.tar.gz Cemu-Switch2Kit-linux-x86_64
+          mv "$app" "$RUNNER_TEMP/unavailable-staged-application"
+          dbus-run-session -- xvfb-run -a python3 dependencies/Switch2Kit/tests/emulator-launch/linux.py cemu \
+            "$PWD/Cemu-Switch2Kit-linux-x86_64.tar.gz" --report "$PWD/linux-launch.json" \
+            --forbidden-root "$PWD" --forbidden-root "$RUNNER_TEMP/disabled-build-tree" \
+            --forbidden-root "$RUNNER_TEMP/unavailable-staged-application"
       - name: Controller-enabled development build
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -67,5 +71,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Cemu-Switch2Kit-linux-diagnostics
-          path: linux-*.log
+          path: |
+            linux-*.log
+            linux-launch.json
           retention-days: 7
