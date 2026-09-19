@@ -34,7 +34,7 @@ private:
 	static std::vector<const wxLanguageInfo*> GetAvailableTranslationLanguages(wxTranslations* translationsMgr);
 
 	MainWindow* m_mainFrame = nullptr;
-#if BOOST_OS_MACOS
+#if BOOST_OS_MACOS || defined(HAVE_SWITCH2KIT)
 	void OnSDLEventPumpTimer(wxTimerEvent& event);
 	wxTimer* m_sdlEventPumpTimer = nullptr;
 #endif
