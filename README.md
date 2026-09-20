@@ -6,28 +6,23 @@ Use this controller-enabled Cemu directly: connect the controller, choose a play
 
 ## Quick start
 
-Sign in to GitHub and select a successful application run for `feature/switch2kit-desktop-platforms` while this PR is unmerged. Choose the named **application** artifact below and check its native build/launch jobs, not a source or diagnostics archive. These are expiring development builds, not published production releases. Use [Build from source](#build-from-source-alternative) when a matching application artifact is unavailable. Ordinary upstream downloads do not include this integration.
+**Controller-enabled application artifacts are no longer built for every pull request.** Use [Build from source](#build-from-source-alternative) for the checked-out revision. Older development artifacts may remain in the [Actions history](https://github.com/jmonster/Cemu/actions) until they expire; inspect the recorded revision and its original build/launch results before using one. Ordinary upstream downloads do not include this integration.
 
 ### macOS
 
-Use macOS 15 or newer and [Native Switch2Kit builds](https://github.com/jmonster/Cemu/actions/workflows/native-switch2kit.yml). Download **Cemu-Switch2Kit-arm64** for Apple Silicon or **Cemu-Switch2Kit-x86_64** for Intel. Extract the outer ZIP, then `build-switch2kit/integration-app.zip` inside it. Move `Cemu_release.app` to Applications and open it. Enable Bluetooth and allow Cemu's Bluetooth request; denied access is managed under **System Settings > Privacy & Security > Bluetooth**.
+Use macOS 15 or newer on Apple Silicon or Intel and follow the [platform build guide](docs/Switch2Kit.md#build-from-source). The helper creates `bin/Cemu_release.app`. Open that app, enable Bluetooth and allow Cemu's Bluetooth request; denied access is managed under **System Settings > Privacy & Security > Bluetooth**.
 
 These apps are ad-hoc signed, not notarized. For a source you trust, use Apple's [per-app Open Anyway procedure](https://support.apple.com/en-us/102445); do not disable Gatekeeper globally.
 
 ### Linux
 
-Use Ubuntu 24.04 x86-64 with a desktop session, graphics drivers, normal system-bus permissions, a powered Bluetooth LE adapter and the BlueZ service. See the [Linux prerequisites](docs/Switch2Kit.md#linux). From [Switch2Kit Linux application builds](https://github.com/jmonster/Cemu/actions/workflows/switch2kit-linux.yml), download **Cemu-Switch2Kit-linux-x86_64**. Extract the outer artifact ZIP and then:
-
-```sh
-tar -xzf Cemu-Switch2Kit-linux-x86_64.tar.gz
-./Cemu-Switch2Kit-linux-x86_64/bin/Cemu_release
-```
+Use Ubuntu 24.04 x86-64 with a desktop session, graphics drivers, normal system-bus permissions, a powered Bluetooth LE adapter and the BlueZ service. See the [Linux prerequisites](docs/Switch2Kit.md#linux) and [source build instructions](docs/Switch2Kit.md#build-from-source). The helper installs to `build-switch2kit/install`; launch `build-switch2kit/install/bin/Cemu_release`.
 
 Keep `bin`, `lib` and `share` together. The Swift runtime is packaged; no Swift installation or loader-path override is needed for a correctly staged application. Compatible system libraries and drivers remain required. This is not an AppImage or universal Linux binary.
 
 ### Windows
 
-Use Windows 11 x64 for these experimental instructions, with a Bluetooth LE driver, graphics drivers and the Microsoft Visual C++ x64 runtime. Native CI uses Windows Server runners, not physical Windows 11 controllers. From [Switch2Kit Windows application builds](https://github.com/jmonster/Cemu/actions/workflows/switch2kit-windows.yml), download **Cemu-Switch2Kit-windows-x86_64**. Extract the outer artifact ZIP and then `Cemu-Switch2Kit-windows-x86_64.zip`. Open `Cemu-Switch2Kit-windows-x86_64/Cemu_release.exe`.
+Use Windows 11 x64 for these experimental instructions, with a Bluetooth LE driver, graphics drivers and the Microsoft Visual C++ x64 runtime. Follow the [Windows build instructions](docs/Switch2Kit.md#build-from-source), then open `bin/Cemu_release.exe`. Physical Windows 11 controller support still requires hardware validation.
 
 Keep its DLLs, `resources`, `gameProfiles` and `Switch2KitNotices` beside it. The selected Swift runtime is included; launching does not require the Swift compiler or its PATH. Run normally, not as administrator, and do not disable operating-system security to bypass errors. See the [Windows source fallback](docs/Switch2Kit.md#windows).
 
@@ -43,14 +38,14 @@ For Joy-Con 2, discover each half with Find/Sync, choose the emulated controller
 
 ### Build from source (alternative)
 
-Follow the [platform build guide](docs/Switch2Kit.md#build-from-source). Start from this implementation branch while the PR is unmerged:
+Follow the [platform build guide](docs/Switch2Kit.md#build-from-source). Check out this maintained fork and its pinned dependencies:
 
 ```sh
-git clone --branch feature/switch2kit-desktop-platforms --recurse-submodules https://github.com/jmonster/Cemu.git cemu-switch2kit
+git clone --branch main --recurse-submodules https://github.com/jmonster/Cemu.git cemu-switch2kit
 cd cemu-switch2kit
 ```
 
-The helpers enable Switch2Kit and use the pinned submodule; do not apply the SDK's separate upstream patches. The ordinary upstream instructions below do not enable it by default. Linux/Windows support remains experimental, and native build/launch tests do not establish physical-controller or gameplay acceptance.
+The helpers enable Switch2Kit and use the pinned submodule; do not apply the SDK's separate upstream patches. The ordinary upstream instructions below do not enable it by default. Linux/Windows support remains experimental, and the CI smoke test does not establish full native integration, physical-controller or gameplay acceptance.
 
 ## Upstream Cemu information
 
