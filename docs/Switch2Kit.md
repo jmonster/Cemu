@@ -6,7 +6,7 @@ Use the [controller-enabled downloads](../README.md#quick-start), launch that Ce
 
 ## Applications and prerequisites
 
-Sign in to GitHub and select a successful run for `feature/switch2kit-desktop-platforms` while this PR is unmerged. Download the application artifact, not a source or diagnostics archive. The outer GitHub artifact ZIP contains the application ZIP/tarball. Desktop application artifacts expire after 14 days; use the source fallback when no matching successful artifact remains. These are development builds, not published production releases. A workflow configuration or a different revision's result is not qualification of the selected download.
+Sign in to GitHub and select a successful run for `feature/switch2kit-auto-connect` while this PR is unmerged. Download the application artifact, not a source or diagnostics archive. The outer GitHub artifact ZIP contains the application ZIP/tarball. Desktop application artifacts expire after 14 days; use the source fallback when no matching successful artifact remains. These are development builds, not published production releases. A workflow configuration or a different revision's result is not qualification of the selected download.
 
 ### macOS
 
@@ -46,7 +46,8 @@ Enable **Settings > Bluetooth & devices > Bluetooth** and use Cemu's Find/Sync p
 
 Close any other app managing the same controllers. Open **Options > Input
 settings**, click **Find Switch 2 Controllers**, allow Bluetooth, and hold the
-controller's **Sync** button. Scanning lasts 60 seconds.
+controller's **Sync** button. With automatic connection off, scanning lasts
+60 seconds. Find opens another bounded window when needed.
 
 Choose the connected **GameCube** or **Pro Controller 2** in the new dropdown
 beside **Emulated controller** on the desired controller tab. Cemu applies the
@@ -65,8 +66,59 @@ reset custom mappings. A physical controller already assigned to another slot
 must be removed there before using the shortcut.
 
 Assignments persist by physical identity, including when identical controllers
-reconnect in a different order. Use **Find** again after restarting Cemu. Use
-**Disconnect Switch 2 Controllers** to stop this backend without erasing profiles.
+reconnect in a different order. Use **Find** again after restarting Cemu when
+automatic connection is off. Use **Disconnect Switch 2 Controllers** to stop this
+backend without erasing profiles.
+
+## Automatic connection
+
+Enable **Automatically connect Switch 2 controllers** in Input settings to start
+support on future launches and keep discovery available after long controller
+absences or paused gameplay. It is **off by default**. Cemu saves this consent
+before applying the radio policy. Startup happens once on the GUI main run loop
+after SDL initialization, even when Input settings is never opened, on every
+platform with this native backend enabled.
+
+This uses the SDK's continuous discovery policy, not a timer repeatedly calling
+Find or renewing a 60-second window. While Cemu remains open, supported advertising
+controllers can be discovered when Bluetooth and connection capacity permit. It
+uses radio resources and is **not a remembered-device allowlist**. It does not
+pair arbitrary Bluetooth devices, wake a powered-off controller, grant permission,
+assign a player slot, or reapply mappings. Initial pairing still requires Sync
+and permission; turn the controller on to reconnect thereafter.
+
+Unchecking the option returns discovery to on-demand mode without detaching
+ready controllers. An already admitted connection attempt may finish. To cancel
+attempts and disconnect all native controllers, use **Disconnect** instead.
+Disconnect is authoritative for the current run: input polling, reopening
+settings, resuming a game, and a delayed startup callback cannot restart support.
+Use **Find**, or turn the option off and on, to resume deliberately. The saved
+choice is retained for the next application launch. After Disconnect, the SDK's
+asynchronous stop may briefly report busy; retry explicitly after it finishes.
+
+The preference is `[Settings] AutoConnect=true` or `false` in `Switch2Kit.ini`,
+beside Cemu's `settings.xml`, not inside controller profiles. Missing files/keys
+mean off. Updates re-read the file, preserve unrelated entries and sections, and
+use Cemu's atomic writer. INI comments/formatting are not preserved. Malformed,
+oversized, inaccessible or non-regular files are not silently replaced. A save
+that would exceed the 64 KiB read limit is rejected before writing, so a successful
+save remains readable on the next launch. A failed save leaves the previous
+choice and radio policy intact; the checkbox reflects the saved choice. Repair
+file access or malformed configuration and retry the option. Configuration and
+policy/start errors remain visible through successful polling and status
+refreshes. Find retries starting support, not saving settings.
+
+The SDK submodule is pinned to
+`d9129e3876f0d68aa7d13395dcff8e2abb38d609`, which combines the shared `SDLHost`
+automatic-discovery and policy-only start methods from
+[Switch2Kit PR #74](https://github.com/jmonster/Switch2Kit/pull/74) with the merged
+[desktop transport and runtime fixes](https://github.com/jmonster/Switch2Kit/pull/75).
+Do not substitute the older automatic-connection pin, which lacks those desktop
+fixes, or a library missing `s2k_set_automatic_discovery`. Source-integration
+checks verify the matching pin. Both SDK changes are merged; this permanent
+commit has the same source tree as the previously reviewed SDK revision. This
+application's own current-revision native checks remain required; earlier
+separate branch results do not qualify the combined application.
 
 ## Controller differences and motion
 
@@ -107,7 +159,7 @@ backend does not invent sensor values or integrate across a disconnect or gap.
 `ENABLE_SWITCH2KIT` is OFF by default. Disabled builds do not require Swift and retain upstream platform/deployment requirements. Enabled Linux/Windows builds use native SDL3 and the desktop backend; only enabled macOS builds require a macOS 15+ app bundle. Initialize the SDK revision selected by this maintained fork, not a moving SDK branch or the SDK's separate upstream patches. While the PR is unmerged:
 
 ```sh
-git clone --branch feature/switch2kit-desktop-platforms --recurse-submodules https://github.com/jmonster/Cemu.git cemu-switch2kit
+git clone --branch feature/switch2kit-auto-connect --recurse-submodules https://github.com/jmonster/Cemu.git cemu-switch2kit
 cd cemu-switch2kit
 ```
 
@@ -141,10 +193,45 @@ For updates, quit Cemu, run `git pull --ff-only`, update the recorded submodules
 
 ## Qualification and troubleshooting
 
-A missing **Find Switch 2 Controllers** button means a backend-disabled binary was launched. For absent input, verify Bluetooth power/access, Sync mode, competing connections, physical selection and the emulated type accepted by the game, then retry Find. A controller already assigned to another slot must be removed there before the quick setup shortcut can move it. Cemu requires Find again after restarting; it does not implement Dolphin's automatic-reconnection option. A changed adapter or rotating device address can change physical identity, so verify player assignments after such a change.
+A missing **Find Switch 2 Controllers** button means a backend-disabled binary was launched. For absent input, verify Bluetooth power/access, Sync mode, competing connections, physical selection and the emulated type accepted by the game, then retry Find. A controller already assigned to another slot must be removed there before the quick setup shortcut can move it. Cemu requires Find again after restarting when automatic connection is off; with it enabled, saved consent starts continuous discovery on the next launch. A changed adapter or rotating device address can change physical identity, so verify player assignments after such a change.
 
 Desktop CI builds the complete application, archives it, extracts that exact archive into a new location, checks that the GUI loads its packaged controller/Swift libraries, requests normal quit and relaunches with a private profile. It deliberately seeds noninteractive test settings; pristine first-use dialogs, downloaded-app security approval and physical hardware are not tested. No existing user configuration is erased. The artifact is qualified only after these jobs pass for its exact revision.
 
-`python3 tests/switch2kit/run.py --sanitize` retains executable mapping, identity, lifecycle and rollback regressions against controlled host/storage boundaries. `python3 tests/switch2kit/test_host_file.py --sdk dependencies/Switch2Kit --sanitize` exercises the real bounded file reader; native MSVC coverage is retained. SDK tests cover protocol values, real C/SDL consumers, calibrated sample handling, rumble bounds, cancellation, runtime relocation and required notices. Source-contract checks supplement those tests, not prose length or English wording restrictions.
+`python3 tests/switch2kit/run.py --sanitize` retains executable mapping, identity, lifecycle, rollback, automatic-connection and configuration regressions against controlled host/storage boundaries. Use `--sdl /path/to/SDL-source` and `--sdk /path/to/Switch2Kit` for a separate checkout of the same pinned SDK revision. `python3 tests/switch2kit/test_host_file.py --sdk dependencies/Switch2Kit --sanitize` exercises the real bounded file reader; native MSVC coverage is retained. SDK tests cover protocol values, real C/SDL consumers, calibrated sample handling, rumble bounds, cancellation, runtime relocation and required notices. Source-contract checks supplement those tests, not prose length or English wording restrictions.
+
+The standalone automatic-connection suite needs a C++20 compiler and Boost headers:
+
+```sh
+python3 tests/switch2kit/test_autoconnect.py --sanitize
+CXX=g++ python3 tests/switch2kit/test_autoconnect.py --sanitize
+```
+
+These tests execute the production session/configuration policies with controlled
+SDK-host and atomic-writer boundaries and real INI file reads. They cover default
+off, one-shot consent, polling without renewal, stop/shutdown fences, live-session
+preservation, save/read failure, retry and unrelated INI entries. Size regressions
+verify exact-limit round trips and preservation of both the file and runtime choice
+when an update would exceed the input bound. Source checks guard the startup hook,
+checkbox, SDK pin and native/backend-disabled gates; they are not GUI or physical
+Bluetooth execution. The desktop lifecycle and Debug/Release adapter CRT configure
+regressions remain in the same runner.
+
+### Automatic-connection hardware acceptance
+
+1. With a fresh configuration, verify automatic connection is off. Enable it,
+   pair a controller, close Input settings, and relaunch Cemu without opening
+   settings. Verify input, releases, sticks and rumble remain usable.
+2. Power off a controller for longer than 60 seconds, then turn it on. Repeat
+   several cycles with a game paused and with settings closed. Also test
+   Bluetooth off/on and recovery after permission is granted.
+3. Reconnect two controllers in reverse order and verify saved player identity,
+   custom mappings and motion-profile selection do not change.
+4. Disable automatic connection while playing: existing input should remain.
+   After disconnecting the controller, use Find for manual discovery.
+5. Use Disconnect with automatic connection enabled, then wake controllers,
+   reopen settings and resume gameplay. Support must remain stopped until Find,
+   explicit re-enabling, or a later launch with saved consent.
+6. Check unreadable/malformed settings and failed saves on a real installation:
+   the checkbox and error status must accurately report the retained choice.
 
 Record separate hardware acceptance for each model/firmware/OS/adapter and tested commit: first pairing and denied-access retry; all controls and releases; independent GameCube trigger travel/clicks; rumble start/stop; two identical controllers reconnecting in reversed order; persisted player assignments after restart; Bluetooth/adapter loss; explicit disconnect; normal shutdown; measured motion where used; and an actual gameplay session. Joy-Con 2 acceptance must include both complementary sources in one slot. No fixture profile or automated pass substitutes for those physical results.

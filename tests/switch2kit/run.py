@@ -60,6 +60,12 @@ def run():
         host_file.append('--sanitize')
     subprocess.run(host_file, check=True)
     subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_wiring.py')], check=True)
+    automatic = ['python3', str(ROOT / 'tests/switch2kit/test_autoconnect.py'), '--include', str(sdl)]
+    if args.sanitize:
+        automatic.append('--sanitize')
+    subprocess.run(automatic, check=True)
+    subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_autoconnect_wiring.py'),
+                    '--sdk', str(sdk)], check=True)
     subprocess.run(['python3', str(ROOT / 'tests/switch2kit/test_desktop_lifecycle.py'),
                     '--sdk', str(sdk)], check=True)
 
