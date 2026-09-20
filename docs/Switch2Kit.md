@@ -2,15 +2,15 @@
 
 **This maintained Cemu fork embeds [Switch2Kit](https://github.com/jmonster/Switch2Kit) for NSO GameCube and Nintendo Switch 2 Pro controllers on macOS 15+, with experimental Linux x86-64 and Windows x64 support.**
 
-Use the [controller-enabled downloads](../README.md#quick-start), launch that Cemu and [select your controller/player slot](#connect-and-play). Ordinary upstream downloads do not embed this backend. No separate dashboard, SDL override, network bridge, virtual-controller driver or Accessibility permission is required. Joy-Con 2 halves remain separate complementary sources; motion requires explicit measured calibration.
+Use the [controller-enabled builds](../README.md#quick-start), launch that Cemu and [select your controller/player slot](#connect-and-play). Ordinary upstream downloads do not embed this backend. No separate dashboard, SDL override, network bridge, virtual-controller driver or Accessibility permission is required. Joy-Con 2 halves remain separate complementary sources; motion requires explicit measured calibration.
 
 ## Applications and prerequisites
 
-Sign in to GitHub and select a successful run for `feature/switch2kit-auto-connect` while this PR is unmerged. Download the application artifact, not a source or diagnostics archive. The outer GitHub artifact ZIP contains the application ZIP/tarball. Desktop application artifacts expire after 14 days; use the source fallback when no matching successful artifact remains. These are development builds, not published production releases. A workflow configuration or a different revision's result is not qualification of the selected download.
+Controller-enabled application builds are now a deliberate local operation using the [source helpers](#build-from-source), not extra CI builds on every pull request. The fork retains upstream workflows and one small session smoke test. That test does not produce downloads. Older development artifacts may remain in the [Actions history](https://github.com/jmonster/Cemu/actions) until their original retention expires; their recorded native build/launch results apply only to that exact revision. Unchanged upstream build artifacts do not enable Switch2Kit.
 
 ### macOS
 
-Use macOS 15 or newer on Apple Silicon (`arm64`) or Intel (`x86_64`). From [Native Switch2Kit](https://github.com/jmonster/Cemu/actions/workflows/native-switch2kit.yml), download **Cemu-Switch2Kit-arm64** or **Cemu-Switch2Kit-x86_64**, extract the outer and inner ZIPs, move `Cemu_release.app` to Applications and open it. The controller library and runtime are embedded. Enable Bluetooth and permit Cemu under **System Settings > Privacy & Security > Bluetooth** when requested.
+Use macOS 15 or newer on Apple Silicon (`arm64`) or Intel (`x86_64`). [Build from source](#build-from-source) with the native architecture, then open `bin/Cemu_release.app`. The helper embeds the controller library and runtime. Enable Bluetooth and permit Cemu under **System Settings > Privacy & Security > Bluetooth** when requested.
 
 The application is ad-hoc signed, not notarized. Use Apple's [per-app approval procedure](https://support.apple.com/en-us/102445) only for an application you trust; do not disable Gatekeeper globally. macOS emulator performance/support limitations are separate from controller input support.
 
@@ -23,12 +23,7 @@ sudo apt-get update
 sudo apt-get install bluez libsystemd0 libgtk-3-0t64 libpulse0 libsecret-1-0   libgcrypt20 libudev1 libgl1 libegl1 libvulkan1 libx11-xcb1
 ```
 
-Get **Cemu-Switch2Kit-linux-x86_64** from [the Linux application workflow](https://github.com/jmonster/Cemu/actions/workflows/switch2kit-linux.yml). Extract the outer ZIP, then:
-
-```sh
-tar -xzf Cemu-Switch2Kit-linux-x86_64.tar.gz
-./Cemu-Switch2Kit-linux-x86_64/bin/Cemu_release
-```
+[Build from source](#build-from-source), then launch `build-switch2kit/install/bin/Cemu_release`. The helper's `--run` option opens it after building.
 
 Keep the whole prefix, including `lib`, `share/Cemu` and `share/Switch2KitNotices`. The selected Swift runtime is packaged; no Swift installation or `LD_LIBRARY_PATH` override is needed to launch it. System desktop libraries and drivers remain prerequisites.
 
@@ -36,11 +31,11 @@ Turn Bluetooth on in your desktop settings. BlueZ must be running, the adapter p
 
 ### Windows
 
-The experimental desktop target is Windows 11 x64 with a working Bluetooth LE adapter/driver and graphics drivers. Native CI uses Windows Server runners, not physical Windows 11 controllers. ARM64 and 32-bit Windows are not covered. Install the [Microsoft Visual C++ x64 runtime](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) if required.
+The experimental desktop target is Windows 11 x64 with a working Bluetooth LE adapter/driver and graphics drivers. Previous native qualification used Windows Server runners, not physical Windows 11 controllers. ARM64 and 32-bit Windows are not covered. Install the [Microsoft Visual C++ x64 runtime](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) if required.
 
-Get **Cemu-Switch2Kit-windows-x86_64** from [the Windows application workflow](https://github.com/jmonster/Cemu/actions/workflows/switch2kit-windows.yml). Extract the outer ZIP and its inner `Cemu-Switch2Kit-windows-x86_64.zip`, then open `Cemu-Switch2Kit-windows-x86_64/Cemu_release.exe`. Keep DLLs, `resources`, `gameProfiles` and `Switch2KitNotices` together. The package includes the Swift runtime; installing Swift or adding compiler directories to PATH is not a launch requirement.
+[Build from source](#build-from-source) with the PowerShell helper, then open `bin/Cemu_release.exe`. Keep DLLs, `resources`, `gameProfiles` and `Switch2KitNotices` together. A correctly staged package includes the Swift runtime; installing Swift or adding compiler directories to PATH is not a launch requirement, though Swift is required to build it.
 
-Enable **Settings > Bluetooth & devices > Bluetooth** and use Cemu's Find/Sync procedure. Honor legitimate system pairing/access prompts; the backend does not erase bonds or bypass pairing policy. Run as a normal user, not administrator, and do not disable SmartScreen/antivirus. A missing DLL before the GUI opens is a packaging/runtime prerequisite failure: re-extract the complete controller-enabled artifact and check the native launch result for its revision.
+Enable **Settings > Bluetooth & devices > Bluetooth** and use Cemu's Find/Sync procedure. Honor legitimate system pairing/access prompts; the backend does not erase bonds or bypass pairing policy. Run as a normal user, not administrator, and do not disable SmartScreen/antivirus. A missing DLL before the GUI opens is a packaging/runtime prerequisite failure: use the complete output of the build helper and inspect the staged dependencies rather than copying only the executable.
 
 ## Connect and play
 
@@ -114,11 +109,11 @@ automatic-discovery and policy-only start methods from
 [Switch2Kit PR #74](https://github.com/jmonster/Switch2Kit/pull/74) with the merged
 [desktop transport and runtime fixes](https://github.com/jmonster/Switch2Kit/pull/75).
 Do not substitute the older automatic-connection pin, which lacks those desktop
-fixes, or a library missing `s2k_set_automatic_discovery`. Source-integration
-checks verify the matching pin. Both SDK changes are merged; this permanent
-commit has the same source tree as the previously reviewed SDK revision. This
-application's own current-revision native checks remain required; earlier
-separate branch results do not qualify the combined application.
+fixes, or a library missing `s2k_set_automatic_discovery`. Both SDK changes are
+merged; this permanent commit has the same source tree as the previously reviewed
+SDK revision. The smoke test does not validate dependency-pin compatibility.
+Validate the exact controller-enabled application separately before distribution;
+earlier separate branch results do not qualify the combined application.
 
 ## Controller differences and motion
 
@@ -156,10 +151,10 @@ backend does not invent sensor values or integrate across a disconnect or gap.
 
 ## Build from source
 
-`ENABLE_SWITCH2KIT` is OFF by default. Disabled builds do not require Swift and retain upstream platform/deployment requirements. Enabled Linux/Windows builds use native SDL3 and the desktop backend; only enabled macOS builds require a macOS 15+ app bundle. Initialize the SDK revision selected by this maintained fork, not a moving SDK branch or the SDK's separate upstream patches. While the PR is unmerged:
+`ENABLE_SWITCH2KIT` is OFF by default. Disabled builds do not require Swift and retain upstream platform/deployment requirements. Enabled Linux/Windows builds use native SDL3 and the desktop backend; only enabled macOS builds require a macOS 15+ app bundle. Initialize the SDK revision selected by this maintained fork, not a moving SDK branch or the SDK's separate upstream patches. Check out main and its recorded dependencies:
 
 ```sh
-git clone --branch feature/switch2kit-auto-connect --recurse-submodules https://github.com/jmonster/Cemu.git cemu-switch2kit
+git clone --branch main --recurse-submodules https://github.com/jmonster/Cemu.git cemu-switch2kit
 cd cemu-switch2kit
 ```
 
@@ -172,22 +167,22 @@ bash scripts/build-switch2kit.sh --run
 
 The helper builds and opens `bin/Cemu_release.app` with the native architecture. The finished app has its controller/runtime dependencies and notices embedded before ad-hoc signing.
 
-**Linux:** install Swift **6.2.1** from [the official Linux instructions](https://www.swift.org/install/linux/), then the native dependencies used by the Ubuntu workflow:
+**Linux:** install Swift **6.2.1** from [the official Linux instructions](https://www.swift.org/install/linux/), then the native build dependencies:
 
 ```sh
 sudo apt-get install build-essential cmake ninja-build python3 pkg-config curl zip unzip tar zstd   nasm autoconf automake libtool libtool-bin gettext freeglut3-dev libgcrypt20-dev libglm-dev   libgtk-3-dev libpulse-dev libsecret-1-dev libsystemd-dev libudev-dev libbluetooth-dev   libgl1-mesa-dev libglu1-mesa-dev libx11-xcb-dev libwayland-dev wayland-protocols   extra-cmake-modules dbus
 bash scripts/build-switch2kit.sh --run
 ```
 
-The helper builds through the recorded vcpkg dependencies, installs to `build-switch2kit/install` and opens `build-switch2kit/install/bin/Cemu_release`. Keep the entire install prefix. CI additionally installs Xvfb/Openbox/wmctrl for isolated graphical testing; an ordinary desktop does not need those test tools.
+The helper builds through the recorded vcpkg dependencies, installs to `build-switch2kit/install` and opens `build-switch2kit/install/bin/Cemu_release`. Keep the entire install prefix.
 
-**Windows:** use native x64 Swift **6.2.1**, Visual Studio **2022 Desktop development with C++** and its Windows SDK, CMake, Ninja, Git, Python 3 and 64-bit PowerShell 7. Follow [Swift's Windows installation guide](https://www.swift.org/install/windows/) for its toolchain. This combination matches Cemu's Windows job; do not combine Swift 6.2's bundled compiler with VS 2026 STL headers. The helper currently selects the latest installed Visual C++ instance, so use a build machine where that instance is the compatible VS 2022 toolchain.
+**Windows:** use native x64 Swift **6.2.1**, Visual Studio **2022 Desktop development with C++** and its Windows SDK, CMake, Ninja, Git, Python 3 and 64-bit PowerShell 7. Follow [Swift's Windows installation guide](https://www.swift.org/install/windows/) for its toolchain. This combination was used by the retired native Windows workflow; do not combine Swift 6.2's bundled compiler with VS 2026 STL headers. The helper currently selects the latest installed Visual C++ instance, so use a build machine where that instance is the compatible VS 2022 toolchain.
 
 ```powershell
 ./scripts/build-switch2kit.ps1 -Run
 ```
 
-It bootstraps the pinned vcpkg checkout, builds `CemuBin` with Switch2Kit enabled, stages runtime dependencies and opens `bin/Cemu_release.exe`. Build-time PATH changes stay process-local; extracted packages are tested without the compiler PATH.
+It bootstraps the pinned vcpkg checkout, builds `CemuBin` with Switch2Kit enabled, stages runtime dependencies and opens `bin/Cemu_release.exe`. Build-time PATH changes stay process-local. A successful local build is not qualification of a separately distributed package.
 
 For updates, quit Cemu, run `git pull --ff-only`, update the recorded submodules and rerun the same helper. Do not delete your settings, profiles or game data to make a new build launch.
 
@@ -195,26 +190,20 @@ For updates, quit Cemu, run `git pull --ff-only`, update the recorded submodules
 
 A missing **Find Switch 2 Controllers** button means a backend-disabled binary was launched. For absent input, verify Bluetooth power/access, Sync mode, competing connections, physical selection and the emulated type accepted by the game, then retry Find. A controller already assigned to another slot must be removed there before the quick setup shortcut can move it. Cemu requires Find again after restarting when automatic connection is off; with it enabled, saved consent starts continuous discovery on the next launch. A changed adapter or rotating device address can change physical identity, so verify player assignments after such a change.
 
-Desktop CI builds the complete application, archives it, extracts that exact archive into a new location, checks that the GUI loads its packaged controller/Swift libraries, requests normal quit and relaunches with a private profile. It deliberately seeds noninteractive test settings; pristine first-use dialogs, downloaded-app security approval and physical hardware are not tested. No existing user configuration is erased. The artifact is qualified only after these jobs pass for its exact revision.
+## CI policy
 
-`python3 tests/switch2kit/run.py --sanitize` retains executable mapping, identity, lifecycle, rollback, automatic-connection and configuration regressions against controlled host/storage boundaries. Use `--sdl /path/to/SDL-source` and `--sdk /path/to/Switch2Kit` for a separate checkout of the same pinned SDK revision. `python3 tests/switch2kit/test_host_file.py --sdk dependencies/Switch2Kit --sanitize` exercises the real bounded file reader; native MSVC coverage is retained. SDK tests cover protocol values, real C/SDL consumers, calibrated sample handling, rumble bounds, cancellation, runtime relocation and required notices. Source-contract checks supplement those tests, not prose length or English wording restrictions.
+Upstream's five workflow files and its tests are retained unchanged. The only added check is **Switch2Kit session smoke**: one C++ executable, compiled and run once on Ubuntu for each pull-request update, with a two-minute job limit and a ten-second execution limit. It is also available through manual dispatch. It has no platform matrix, dependency checkout, SDK test rerun, full application build, cache or artifact upload. No extra push or scheduled run is added.
 
-The standalone automatic-connection suite needs a C++20 compiler and Boost headers:
+The test includes the production `Switch2KitSession.h` and controls only the external host boundary. Its single lifecycle scenario checks default-off behavior, failed discovery and explicit retry, preserving an active session after a failed rescan, save-result handling for opt-in/opt-out, and stopping polling on disconnect/shutdown. Run the same test locally from the repository root with any C++20 compiler; no submodules are needed:
 
 ```sh
-python3 tests/switch2kit/test_autoconnect.py --sanitize
-CXX=g++ python3 tests/switch2kit/test_autoconnect.py --sanitize
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+c++ -std=c++20 -Wall -Wextra -Werror -Isrc tests/switch2kit/smoke.cpp -o "$work/smoke"
+"$work/smoke"
 ```
 
-These tests execute the production session/configuration policies with controlled
-SDK-host and atomic-writer boundaries and real INI file reads. They cover default
-off, one-shot consent, polling without renewal, stop/shutdown fences, live-session
-preservation, save/read failure, retry and unrelated INI entries. Size regressions
-verify exact-limit round trips and preservation of both the file and runtime choice
-when an update would exceed the input bound. Source checks guard the startup hook,
-checkbox, SDK pin and native/backend-disabled gates; they are not GUI or physical
-Bluetooth execution. The desktop lifecycle and Debug/Release adapter CRT configure
-regressions remain in the same runner.
+The additional mapping, identity, file-reader, configuration-file, source-wiring and platform-configuration harnesses, SDK reruns, and duplicate application/GUI qualification workflows have been removed, not hidden behind one aggregate test command. SDK regression testing belongs in the SDK repository. This narrow smoke check does not establish full Cemu/SDL/SDK integration, controller mappings, runtime packaging, GUI startup, platform compatibility or hardware acceptance. Before distributing a controller-enabled build, separately validate that exact build on its target platform using the normal build helpers and real hardware; routine upstream builds keep the backend disabled by default.
 
 ### Automatic-connection hardware acceptance
 
