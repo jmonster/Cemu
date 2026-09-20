@@ -7,8 +7,11 @@
 struct RecordingHost
 {
 	int discoveryResult = 0, pumpResult = 0, stopResult = 0;
-	int discoveries = 0, pumps = 0, stops = 0, shutdowns = 0;
+	int discoveries = 0, pumps = 0, stops = 0, shutdowns = 0, starts = 0;
+	bool automatic = false;
 
+	int setAutomaticDiscovery(bool enabled) { automatic = enabled; return 0; }
+	int start() { ++starts; return 0; }
 	int discover() { ++discoveries; return discoveryResult; }
 	int pump() { ++pumps; return pumpResult; }
 	int stop() { ++stops; return stopResult; }
@@ -29,8 +32,8 @@ int main()
 {
 	Switch2KitSession<RecordingHost> session;
 	auto& host = session.GetHost();
-	Check(!session.IsEnabled() && session.Pump() == 0 && host.pumps == 0 &&
-		host.discoveries == 0, "startup must not discover or pump without consent");
+	Check(session.StartOnce() == 0 && !session.AutoConnect() && !session.IsEnabled() &&
+		session.Pump() == 0 && host.pumps == 0 && host.discoveries == 0 && host.starts == 0, "startup must not discover or pump without consent");
 
 	host.discoveryResult = -1;
 	Check(session.Discover() == -1 && host.discoveries == 1 && !session.IsEnabled(),
@@ -48,18 +51,34 @@ int main()
 		"failed rescan must preserve an already active session");
 	Check(session.Pump() == -2 && host.pumps == 2, "existing input must survive failed rescan");
 
+	bool saved = false;
+	auto save = [&](bool enabled) { saved = enabled; return true; };
+	Check(session.SetAutoConnect(true, [](bool) { return false; }) == session.ConfigurationError &&
+		!session.AutoConnect() && !host.automatic && host.starts == 0,
+		"failed save must not enable automatic discovery");
+	Check(session.SetAutoConnect(true, save) == 0 && saved && session.AutoConnect() &&
+		host.automatic && host.starts == 1, "saved opt-in must start automatic discovery");
+
 	host.stopResult = -4;
 	Check(session.Stop() == -4 && host.stops == 1 && !session.IsEnabled(),
 		"disconnect must fence polling even when the host reports a stop error");
-	Check(session.Pump() == 0 && host.pumps == 2, "polling must not restart a stopped session");
+	Check(session.StartOnce() == 0 && session.Pump() == 0 && host.pumps == 2 && host.starts == 1,
+		"polling or startup callbacks must not undo explicit disconnect");
 
 	host.discoveryResult = 0;
-	Check(session.Discover() == 0 && host.discoveries == 4 && session.IsEnabled(),
+	Check(session.Discover() == 0 && host.discoveries == 3 && host.starts == 2 && session.IsEnabled(),
 		"a stopped session must permit an explicit restart");
 	Check(session.Pump() == -2 && host.pumps == 3, "restarted session must forward polling");
+	Check(session.SetAutoConnect(false, save) == 0 && !saved && !session.AutoConnect() &&
+		!host.automatic && session.IsEnabled() && host.stops == 1,
+		"opting out must preserve existing input without stopping the host");
+	Check(session.Pump() == -2 && host.pumps == 4, "existing input must survive opt-out");
 	session.Shutdown();
-	Check(host.shutdowns == 1 && !session.IsEnabled() && session.Pump() == 0 && host.pumps == 3,
+	Check(host.shutdowns == 1 && !session.IsEnabled() && session.Pump() == 0 && host.pumps == 4,
 		"shutdown must reach the host and prevent subsequent polling");
+
+	Check(session.Discover() == session.ShutdownError && session.StartOnce() == 0 &&
+		host.starts == 2 && host.discoveries == 3, "shutdown must reject further startup");
 
 	std::cout << "PASS: Switch2Kit session lifecycle\n";
 	return EXIT_SUCCESS;

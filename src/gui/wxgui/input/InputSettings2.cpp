@@ -18,6 +18,7 @@
 #include <wx/settings.h>
 #ifdef HAVE_SWITCH2KIT
 #include <wx/choice.h>
+#include <wx/checkbox.h>
 #include <wx/msgdlg.h>
 #include "input/api/SDL/SDLController.h"
 #include "input/api/SDL/Switch2KitMapping.h"
@@ -94,10 +95,22 @@ InputSettings2::InputSettings2(wxWindow* parent)
 	auto* stop = new wxButton(this, wxID_ANY, _("Disconnect Switch 2 Controllers"));
 	discovery->Add(find, 0, wxALL, 5);
 	discovery->Add(stop, 0, wxALL, 5);
-	m_switch2Status = new wxStaticText(this, wxID_ANY, _("Hold Sync while searching, then choose your controller beside Emulated controller."));
+	auto* auto_connect = new wxCheckBox(this, wxID_ANY, _("Automatically connect Switch 2 controllers"));
+	auto_connect->SetValue(SDLControllerProvider::Switch2AutoConnect());
+	auto_connect->SetToolTip(_("Start on future launches and continuously discover supported controllers, including after long pauses. Uses Bluetooth radio resources. Existing mappings are not changed. Unchecking keeps connected controllers; Disconnect stops support for this run until Find or re-enabling."));
+	m_switch2Status = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(SDLControllerProvider::Switch2ControllerStatus()));
+	m_switch2Status->SetMinSize(wxSize(600, m_switch2Status->GetCharHeight() * 4));
 	m_switch2Status->Wrap(600);
 	sizer->Add(discovery, 0, wxEXPAND);
+	sizer->Add(auto_connect, 0, wxLEFT | wxRIGHT | wxBOTTOM, 5);
 	sizer->Add(m_switch2Status, 0, wxLEFT | wxRIGHT | wxBOTTOM, 5);
+	auto_connect->Bind(wxEVT_CHECKBOX, [this, auto_connect](wxCommandEvent& event) {
+		const int result = SDLControllerProvider::SetSwitch2AutoConnect(event.IsChecked());
+		// Reflect the saved choice, not an unsuccessful write or a runtime guess.
+		auto_connect->SetValue(SDLControllerProvider::Switch2AutoConnect());
+		if (result != 0)
+			wxMessageBox(wxString::Format(_("The automatic connection setting could not be saved or applied (%d). Check Switch2Kit.ini access and Bluetooth permission. After Disconnect, wait a moment before retrying. The checkbox shows the saved choice; Find retries starting support."), result), _("Switch 2 Controllers"), wxOK | wxICON_WARNING, this);
+	});
 	find->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
 		const int result = SDLControllerProvider::FindSwitch2Controllers();
 		if (result != 0)
@@ -145,8 +158,10 @@ InputSettings2::InputSettings2(wxWindow* parent)
 	m_timer->Start(25);
 #ifdef HAVE_SWITCH2KIT
 	m_switch2Timer = new wxTimer(this);
-	Bind(wxEVT_TIMER, [this](wxTimerEvent&) {
+	Bind(wxEVT_TIMER, [this, auto_connect](wxTimerEvent&) {
+		auto_connect->SetValue(SDLControllerProvider::Switch2AutoConnect());
 		m_switch2Status->SetLabel(wxString::FromUTF8(SDLControllerProvider::Switch2ControllerStatus()));
+		m_switch2Status->Wrap(600);
 		if (m_switch2DevicesChanged->Consume())
 			on_controller_changed();
 	}, m_switch2Timer->GetId());

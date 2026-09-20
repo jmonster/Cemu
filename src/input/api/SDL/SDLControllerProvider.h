@@ -26,6 +26,8 @@ public:
 #ifdef HAVE_SWITCH2KIT
 	static int FindSwitch2Controllers();
 	static int DisconnectSwitch2Controllers();
+	static bool Switch2AutoConnect();
+	static int SetSwitch2AutoConnect(bool enabled);
 	static std::string Switch2ControllerStatus();
 	static SDL_JoystickID FindSwitch2Device(std::string_view key);
 	static int LoadSwitch2MotionProfile(const std::string& path, const std::string& key);

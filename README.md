@@ -28,11 +28,13 @@ Keep its DLLs, `resources`, `gameProfiles` and `Switch2KitNotices` beside it. Th
 
 ### Connect and play
 
-1. Close competing controller apps/consoles. In Cemu, open **Options > Input settings**, click **Find Switch 2 Controllers**, and hold the controller's **Sync** button until its player lights sweep. Allow legitimate Bluetooth access prompts. The search lasts 60 seconds; repeat Find to retry.
+1. Close competing controller apps/consoles. In Cemu, open **Options > Input settings**, click **Find Switch 2 Controllers**, and hold the controller's **Sync** button until its player lights sweep. Allow legitimate Bluetooth access prompts. With automatic connection off, the search lasts 60 seconds; repeat Find to retry.
 2. Select the desired controller tab (for example, **Controller 1**). In the physical-controller dropdown beside **Emulated controller**, select the connected **GameCube** or **Pro Controller 2**. Cemu applies recommended mappings. An empty first slot becomes a Wii U GamePad, other empty slots become Wii U Pro Controllers; existing GamePad/Pro/Classic types are retained. Choose a type the game accepts.
 3. Verify buttons, sticks and triggers in Input settings. Open the physical controller's **Settings** to adjust **Rumble** and use **Test rumble**, then open the game. NSO GameCube trigger travel and full clicks remain independent inputs; Pro triggers are digital. GameCube sticks have no click buttons, so games needing those actions require additional bindings.
 
-Saved assignments follow the physical controller rather than its discovery order. Reopen the same application and use **Find** again on subsequent launches; Cemu does not implement Dolphin's automatic-reconnect option. **Disconnect Switch 2 Controllers** stops the backend without erasing saved profiles. Replacing a populated slot asks first and creates a **Before Switch2Kit-…** backup; reconnecting does not overwrite custom mappings.
+Saved assignments follow the physical controller rather than its discovery order. To connect on later launches and after long pauses without reopening Input settings, enable **Automatically connect Switch 2 controllers**. It is off by default and uses Bluetooth radio resources. Unchecking it stops automatic discovery without disconnecting ready controllers. With it off, use **Find** for a bounded search.
+
+**Disconnect Switch 2 Controllers** stops support for the current run without erasing profiles or the saved automatic-connection choice. Use **Find**, or turn the automatic option off and on, to resume deliberately; saved consent applies again on the next launch. Replacing a populated slot asks first and creates a **Before Switch2Kit-…** backup; reconnecting does not overwrite custom mappings. See [Automatic connection](docs/Switch2Kit.md#automatic-connection) for consent and troubleshooting details.
 
 For Joy-Con 2, discover each half with Find/Sync, choose the emulated controller type, and add both via **+ > SDLController** to the same player slot. These are separate complementary sources, not a system-wide paired virtual controller. Motion requires a measured, device-matching `.s2kmotion` profile selected in physical-controller Settings and **Use motion** enabled. Never use synthetic test profiles for gameplay. See [controller differences and motion](docs/Switch2Kit.md#controller-differences-and-motion).
 
@@ -96,7 +98,7 @@ The old bug tracker can be found at [bugs.cemu.info](https://bugs.cemu.info) and
 
 ## Contributing
 
-If you want to contribute you can take a look at our [contribution guidelines](/CONTRIBUTING.md).
+To contribute, take a look at our [contribution guidelines](/CONTRIBUTING.md).
 
 ## License
 Cemu is licensed under [Mozilla Public License 2.0](/LICENSE.txt). Exempt from this are all files in the dependencies directory for which the licenses of the original code apply as well as some individual files in the src folder, as specified in those file headers respectively.
