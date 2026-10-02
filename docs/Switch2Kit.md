@@ -176,13 +176,15 @@ bash scripts/build-switch2kit.sh --run
 
 The helper builds through the recorded vcpkg dependencies, installs to `build-switch2kit/install` and opens `build-switch2kit/install/bin/Cemu_release`. Keep the entire install prefix.
 
-**Windows:** use native x64 Swift **6.2.1**, Visual Studio **2022 Desktop development with C++** and its Windows SDK, CMake, Ninja, Git, Python 3 and 64-bit PowerShell 7. Follow [Swift's Windows installation guide](https://www.swift.org/install/windows/) for its toolchain. This combination was used by the retired native Windows workflow; do not combine Swift 6.2's bundled compiler with VS 2026 STL headers. The helper currently selects the latest installed Visual C++ instance, so use a build machine where that instance is the compatible VS 2022 toolchain.
+**Windows:** use native x64 Swift **6.2.1**, Visual Studio **2022 Desktop development with C++** and its Windows SDK, CMake, Ninja, Git, Python 3 and 64-bit PowerShell 7. Follow [Swift's Windows installation guide](https://www.swift.org/install/windows/) for its toolchain. This combination was used by the retired native Windows workflow; do not combine Swift 6.2's bundled compiler with VS 2026 STL headers. The helper selects the latest installed VS 2022 C++ instance even when VS 2026 is also installed, and rejects Swift versions other than the qualified 6.2.1 before building. It resolves Swift and its sibling swiftc before initializing Visual Studio, then passes both exact paths to CMake so PATH changes or a previous configure cannot mix toolchains.
 
 ```powershell
 ./scripts/build-switch2kit.ps1 -Run
 ```
 
 It bootstraps the pinned vcpkg checkout, builds `CemuBin` with Switch2Kit enabled, stages runtime dependencies and opens `bin/Cemu_release.exe`. Build-time PATH changes stay process-local. A successful local build is not qualification of a separately distributed package.
+
+The helper's toolchain-selection regression can be run manually with `pwsh -NoProfile -File tests/switch2kit/windows-toolchain.ps1`. It executes the production helper with mocked process/filesystem boundaries to cover coinstalled Visual Studio versions, invalid Swift selections and exact compiler-path forwarding. It does not build Cemu or validate Windows runtime packaging, and adds no automatic CI job.
 
 For updates, quit Cemu, run `git pull --ff-only`, update the recorded submodules and rerun the same helper. Do not delete your settings, profiles or game data to make a new build launch.
 
