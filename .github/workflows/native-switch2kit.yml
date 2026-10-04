@@ -23,3 +23,5 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Werror -Isrc \
             tests/switch2kit/smoke.cpp -o "$RUNNER_TEMP/switch2kit-smoke"
           timeout 10s "$RUNNER_TEMP/switch2kit-smoke"
+      - name: Check default controller mappings
+        run: python3 tests/switch2kit/test_mapping.py
