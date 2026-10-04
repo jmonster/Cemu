@@ -28,7 +28,8 @@ Mapping GamepadMapping(unsigned model)
 			{Pad::kButtonId_B, gc ? SDL_GAMEPAD_BUTTON_WEST : SDL_GAMEPAD_BUTTON_SOUTH},
 			{Pad::kButtonId_X, gc ? SDL_GAMEPAD_BUTTON_EAST : SDL_GAMEPAD_BUTTON_NORTH},
 			{Pad::kButtonId_Y, gc ? SDL_GAMEPAD_BUTTON_NORTH : SDL_GAMEPAD_BUTTON_WEST},
-			{Pad::kButtonId_R, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER},
+			// NSO GameCube Z is Misc 4; keep physical R travel on the ZR axis below.
+			{Pad::kButtonId_R, gc ? SDL_GAMEPAD_BUTTON_MISC4 : SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER},
 			{Pad::kButtonId_ZR, kTriggerYP},
 			{Pad::kButtonId_Plus, SDL_GAMEPAD_BUTTON_START},
 			{Pad::kButtonId_Home, SDL_GAMEPAD_BUTTON_GUIDE},
